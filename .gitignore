@@ -1,0 +1,12 @@
+# 작업 원자료
+.raw/
+
+# 비밀값·환경 변수
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+
+# OS·편집기
+.DS_Store

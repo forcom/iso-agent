@@ -1,0 +1,10 @@
+**
+!apps/
+!apps/engine/
+!apps/engine/Dockerfile
+!apps/engine/requirements.txt
+!apps/engine/server.py
+!apps/engine/wirelog.py
+!apps/packages/
+!apps/packages/ontology/
+!apps/packages/ontology/rules.dl

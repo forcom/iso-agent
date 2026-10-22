@@ -1,0 +1,334 @@
+{
+  "fictional": true,
+  "configurationId": "aidu-personnel-2026-10-23",
+  "authorizedAt": "2026-10-23T00:00:00+09:00",
+  "authorizationReference": "https://github.com/forcom/iso-agent/issues/2",
+  "persons": [
+    {
+      "personaId": "P01",
+      "name": "윤승용",
+      "department": "경영진",
+      "jobTitle": "CEO",
+      "reportsTo": null,
+      "roles": [
+        {
+          "name": "대표이사",
+          "scope": "all"
+        },
+        {
+          "name": "계약 승인권자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 책임자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P02",
+      "name": "정서진",
+      "department": "경영진",
+      "jobTitle": "COO/CFO",
+      "reportsTo": "P01",
+      "roles": [
+        {
+          "name": "자원 조정·관리 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 책임자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P03",
+      "name": "김철수",
+      "department": "경영진",
+      "jobTitle": "CTO / 개발·AI팀장 / 운영팀장 / AIMS 책임자",
+      "reportsTo": "P01",
+      "roles": [
+        {
+          "name": "기술책임자",
+          "scope": "all"
+        },
+        {
+          "name": "시스템 책임자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "리스크·조치 책임자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 책임자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P04",
+      "name": "홍길순",
+      "department": "경영지원 · 총무팀",
+      "jobTitle": "총무 / 문서관리 / 교육 운영",
+      "reportsTo": "P02",
+      "roles": [
+        {
+          "name": "문서·기록관리 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "교육·역량 운영 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "심사 운영 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": true
+    },
+    {
+      "personaId": "P05",
+      "name": "김영희",
+      "department": "경영지원 · 회계팀",
+      "jobTitle": "회계 / 공급자 계약 / 내부심사",
+      "reportsTo": "P02",
+      "roles": [
+        {
+          "name": "공급자 계약 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "내부심사원",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P06",
+      "name": "박문수",
+      "department": "경영지원 · 영업팀",
+      "jobTitle": "영업 / 마케팅 / 고객 대응",
+      "reportsTo": "P02",
+      "roles": [
+        {
+          "name": "고객 의사소통 담당자",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P07",
+      "name": "이개발",
+      "department": "개발/AI팀",
+      "jobTitle": "Backend Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P08",
+      "name": "한지우",
+      "department": "개발/AI팀",
+      "jobTitle": "Frontend Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P09",
+      "name": "오수빈",
+      "department": "개발/AI팀",
+      "jobTitle": "Designer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P10",
+      "name": "정민재",
+      "department": "개발/AI팀",
+      "jobTitle": "AI Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P11",
+      "name": "강도윤",
+      "department": "개발/AI팀",
+      "jobTitle": "AI Software Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P12",
+      "name": "임서현",
+      "department": "개발/AI팀",
+      "jobTitle": "Data Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "개발·데이터 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P13",
+      "name": "최운영",
+      "department": "운영팀",
+      "jobTitle": "DevOps Engineer / 내부심사",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "운영·검증 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "자원 책임자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "내부심사원",
+          "scope": "all"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P14",
+      "name": "장현우",
+      "department": "운영팀",
+      "jobTitle": "Security Engineer",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "운영·검증 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "독립 검증자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    },
+    {
+      "personaId": "P15",
+      "name": "홍길동",
+      "department": "운영팀",
+      "jobTitle": "Privacy & AI Safety Engineer / AI 영향평가",
+      "reportsTo": "P03",
+      "roles": [
+        {
+          "name": "운영·검증 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "인공지능안전관리자",
+          "scope": "all"
+        },
+        {
+          "name": "영향평가 담당자",
+          "scope": "edu-score"
+        },
+        {
+          "name": "업무 수행자",
+          "scope": "all"
+        }
+      ],
+      "admin": false
+    }
+  ]
+}

@@ -7,7 +7,18 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @iso-agent/worker dev",
-    "typecheck": "pnpm -r typecheck"
+    "engine:setup": "python3 -m venv output/runtime/engine-venv && output/runtime/engine-venv/bin/pip --cache-dir output/runtime/pip-cache install -r apps/engine/requirements.txt",
+    "dev:engine": "PYTHONDONTWRITEBYTECODE=1 HOST=127.0.0.1 PORT=8788 output/runtime/engine-venv/bin/python apps/engine/server.py",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @iso-agent/test test",
+    "test:engine": "pnpm --filter @iso-agent/test test:engine",
+    "test:e2e": "pnpm --filter @iso-agent/test test:e2e",
+    "build": "pnpm --filter @iso-agent/worker build",
+    "deploy:demo": "pnpm build && pnpm --filter @iso-agent/worker deploy:demo",
+    "knowledge:build": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/build.ts",
+    "knowledge:check": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/check.ts",
+    "knowledge:install": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/install.ts",
+    "personnel:install": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/personnel.ts"
   },
   "engines": {
     "node": ">=20"

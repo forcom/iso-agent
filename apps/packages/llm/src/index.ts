@@ -31,6 +31,7 @@ export class OpenAiProvider implements LlmProvider {
         temperature: opts?.temperature ?? 0.2,
         messages,
       }),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) {
       const text = await res.text();

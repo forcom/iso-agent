@@ -1,0 +1,94 @@
+// Canonical rules: this file is copied into the engine image without a second source.
+.decl seed(node: symbol)
+.decl edge(id: symbol, source: symbol, target: symbol)
+.decl step(source: symbol, target: symbol)
+.decl unlimited(mode: symbol)
+.decl depth_limit(value: int32)
+.decl reached(node: symbol)
+.decl at_depth(node: symbol, depth: int32)
+.decl selected_edge(id: symbol)
+reached(N) :- seed(N).
+reached(T) :- reached(S), step(S,T), unlimited("yes").
+at_depth(N,0) :- seed(N).
+at_depth(T,D+1) :- at_depth(S,D), step(S,T), depth_limit(L), D < L.
+reached(N) :- at_depth(N,D).
+selected_edge(I) :- edge(I,S,T), reached(S), reached(T), unlimited("yes").
+selected_edge(I) :- edge(I,S,T), at_depth(S,D), depth_limit(L), D < L.
+selected_edge(I) :- edge(I,S,T), at_depth(T,D), depth_limit(L), D < L.
+
+.decl required(id: symbol, subject: symbol, record_type: symbol)
+.decl record_type(record: symbol, type: symbol)
+.decl record_revision(record: symbol, revision: symbol)
+.decl usable_revision(revision: symbol)
+.decl direct_candidate(revision: symbol, target: symbol)
+.decl candidate(revision: symbol, target: symbol)
+.decl satisfied(type: symbol)
+.decl missing_required(id: symbol, type: symbol)
+candidate(V,T) :- direct_candidate(V,T), usable_revision(V).
+candidate(V,S) :- required(I,S,T), record_type(R,T), record_revision(R,V), usable_revision(V).
+satisfied(T) :- record_type(R,T), record_revision(R,V), usable_revision(V).
+missing_required(I,T) :- required(I,S,T), reached(S), !satisfied(T).
+
+.decl actor(person: symbol, now: int64)
+.decl requested(action: symbol)
+.decl required_type(type: symbol)
+.decl resource(id: symbol)
+.decl target_system(system: symbol)
+.decl target_state(state: symbol)
+.decl target_owner(person: symbol)
+.decl recipient(person: symbol)
+.decl observed(field: symbol, value: symbol)
+.decl is_admin(person: symbol)
+.decl exact_revision(value: symbol)
+.decl person_conflict(kind: symbol, person: symbol)
+.decl known_separation(kind: symbol)
+.decl assignment(id: symbol, person: symbol, role: symbol, start: int64, end: int64)
+.decl assignment_scope(id: symbol, kind: symbol)
+.decl assignment_scope_id(id: symbol, value: symbol)
+.decl assignment_root(id: symbol)
+.decl delegated(id: symbol, parent: symbol)
+.decl wrong_assignment_system(id: symbol)
+.decl assignment_scope_ok(id: symbol)
+.decl assignment_time_ok(id: symbol)
+.decl effective_assignment(id: symbol, person: symbol, role: symbol)
+wrong_assignment_system(I) :- assignment_scope(I,"system"), target_system(S), !assignment_scope_id(I,S).
+assignment_scope_ok(I) :- assignment_scope(I,"all").
+assignment_scope_ok(I) :- assignment_scope(I,"system"), target_system(S), !wrong_assignment_system(I).
+assignment_scope_ok(I) :- assignment_scope(I,"resource"), resource(R), assignment_scope_id(I,R).
+assignment_time_ok(I) :- assignment(I,P,R,S,E), actor(A,N), N >= S, N < E, assignment_scope_ok(I).
+effective_assignment(I,P,R) :- assignment(I,P,R,S,E), assignment_time_ok(I), assignment_root(I).
+effective_assignment(I,P,R) :- assignment(I,P,R,S,E), assignment_time_ok(I), delegated(I,J), effective_assignment(J,Q,R).
+
+.decl policy(id: symbol, type: symbol, action: symbol, role: symbol, separation: symbol)
+.decl policy_state(id: symbol, state: symbol)
+.decl policy_scope(id: symbol, kind: symbol)
+.decl policy_system(id: symbol, system: symbol)
+.decl policy_condition(id: symbol, field: symbol, value: symbol)
+.decl policy_admin(id: symbol, required: symbol)
+.decl policy_exact(id: symbol, required: symbol)
+.decl wrong_policy_system(id: symbol)
+.decl unmet_condition(id: symbol)
+.decl policy_scope_ok(id: symbol)
+.decl policy_admin_ok(id: symbol)
+.decl policy_revision_ok(id: symbol)
+.decl policy_separation_ok(id: symbol)
+.decl allowed(type: symbol, policy: symbol, assignment: symbol)
+.decl common_permission(action: symbol)
+.decl product_admin_policy(id: symbol)
+wrong_policy_system(P) :- policy_scope(P,"system"), target_system(S), !policy_system(P,S).
+unmet_condition(P) :- policy_condition(P,K,V), !observed(K,V).
+policy_scope_ok(P) :- policy_scope(P,"all").
+policy_scope_ok(P) :- policy_scope(P,"system"), target_system(S), !wrong_policy_system(P).
+policy_scope_ok(P) :- policy_scope(P,"owner"), actor(A,N), target_owner(A).
+policy_scope_ok(P) :- policy_scope(P,"recipient"), actor(A,N), recipient(A).
+policy_admin_ok(P) :- policy_admin(P,"no").
+policy_admin_ok(P) :- policy_admin(P,"yes"), actor(A,N), is_admin(A).
+policy_revision_ok(P) :- policy_exact(P,"no").
+policy_revision_ok(P) :- policy_exact(P,"yes"), exact_revision("yes").
+policy_separation_ok(P) :- policy(P,T,A,R,"none").
+policy_separation_ok(P) :- policy(P,T,A,R,K), known_separation(K), actor(U,N), !person_conflict(K,U).
+allowed(T,P,I) :- actor(U,N), requested(A), required_type(T), policy(P,T,A,R,K), effective_assignment(I,U,R), target_state(S), policy_state(P,S), policy_scope_ok(P), policy_admin_ok(P), policy_revision_ok(P), policy_separation_ok(P), !unmet_condition(P).
+common_permission("read") :- actor(U,N), requested("read").
+common_permission("confirm_receipt") :- actor(U,N), requested("confirm_receipt"), recipient(U), exact_revision("yes").
+
+allowed(T,P,"") :- actor(U,N), requested(A), required_type(T), policy(P,T,A,"administrator",K), product_admin_policy(P), is_admin(U), target_state(S), policy_state(P,S), policy_scope_ok(P), policy_admin_ok(P), policy_revision_ok(P), policy_separation_ok(P), !unmet_condition(P).

@@ -5,16 +5,29 @@
   "license": "MPL-2.0",
   "type": "module",
   "scripts": {
-    "dev": "mkdir -p ../../output/runtime/worker && WRANGLER_LOG_PATH=../../output/runtime/logs WRANGLER_CACHE_DIR=../../output/runtime/cache wrangler dev --persist-to ../../output/runtime/worker/state",
-    "typecheck": "tsc --noEmit"
+    "dev": "WRANGLER_LOG_PATH=../../output/runtime/logs WRANGLER_CACHE_DIR=../../output/runtime/cache vite",
+    "typecheck": "tsc --noEmit && tsc -p web/tsconfig.json",
+    "build": "WRANGLER_LOG_PATH=../../output/runtime/logs WRANGLER_CACHE_DIR=../../output/runtime/cache vite build && rm -f ../../output/build/worker/*/.dev.vars",
+    "deploy:demo": "WRANGLER_LOG_PATH=../../output/runtime/logs WRANGLER_CACHE_DIR=../../output/runtime/cache wrangler deploy --config ../../output/build/worker/iso_agent_demo/wrangler.json"
   },
   "dependencies": {
-    "hono": "^4.7.2"
+    "@cloudflare/containers": "^0.3.7",
+    "@xyflow/react": "^12.12.0",
+    "hono": "^4.7.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.64.0",
     "@cloudflare/workers-types": "^5.20261022.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "tsx": "^4.23.15",
     "typescript": "^5.8.2",
+    "vite": "^8.3.5",
     "wrangler": "^4.1.0"
   }
 }

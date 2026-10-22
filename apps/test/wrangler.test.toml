@@ -1,0 +1,17 @@
+name = "iso-test-erp"
+main = "../worker/src/index.ts"
+compatibility_date = "2025-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENGINE_URL = "http://127.0.0.1:18765"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "iso-test-database"
+database_id = "00000000-0000-0000-0000-000000000099"
+migrations_dir = "../worker/migrations"
+
+[[r2_buckets]]
+binding = "SOURCES"
+bucket_name = "iso-test-sources"

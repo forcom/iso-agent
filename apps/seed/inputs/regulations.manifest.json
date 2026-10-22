@@ -1,0 +1,848 @@
+{
+  "version": "1",
+  "sources": [
+    {
+      "path": "docs/manual/AIDU-AIM-01-01.md",
+      "code": "AIDU-AIM-01-01",
+      "title": "인공지능경영 매뉴얼 - 개정이력 및 문서체계",
+      "kind": "manual",
+      "sha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+      "artifactId": "7a724c38-3c4c-53f4-baf5-4d81307aae09",
+      "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-02.md",
+      "code": "AIDU-AIM-01-02",
+      "title": "인공지능경영 매뉴얼 - 적용범위, 참조규격/일반요구사항, 용어와 정의",
+      "kind": "manual",
+      "sha256": "dcf64bc98ff7ce83bbe4a97a9de7def42a60afa4911ebda5c2fd84c5958bef3a",
+      "artifactId": "18486255-045a-5e02-8eb3-082be29f616f",
+      "revisionId": "38f9a5aa-5051-5cd8-8b62-645a93d7074d"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-03.md",
+      "code": "AIDU-AIM-01-03",
+      "title": "인공지능경영 매뉴얼 - 조직의 상황",
+      "kind": "manual",
+      "sha256": "0a8874e96aa4dc35c4123a61a3336c26975b3437e1f4e31b61aa0303838d4db1",
+      "artifactId": "da3dccb7-ce32-5f9a-985b-1fa763cde85d",
+      "revisionId": "7c67918f-0039-5e2e-aede-d483e9a6461b"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-04.md",
+      "code": "AIDU-AIM-01-04",
+      "title": "인공지능경영 매뉴얼 - 리더십",
+      "kind": "manual",
+      "sha256": "709c07d060393d927977c395889d738fedb43ae0d2a0b74ae183f02e9a712041",
+      "artifactId": "24f84442-5002-56f7-a173-70f9768c3799",
+      "revisionId": "83c464b1-2408-58cd-b90e-5bf84376daf2"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-05.md",
+      "code": "AIDU-AIM-01-05",
+      "title": "인공지능경영 매뉴얼 - 기획",
+      "kind": "manual",
+      "sha256": "931fad4282c0d1eab2515762b64de822b58be3046363e627709e84816332c42f",
+      "artifactId": "e47759ac-f2da-57a8-a8da-62655eaf60dc",
+      "revisionId": "0413292e-512d-5ce1-9ffd-88c56f484980"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-06.md",
+      "code": "AIDU-AIM-01-06",
+      "title": "인공지능경영 매뉴얼 - 지원",
+      "kind": "manual",
+      "sha256": "923f87d6ef0b602f393b1371363c25d9a8213ba03f25234292ea8987bf095f96",
+      "artifactId": "1091bfa2-50ac-5dcd-888e-af40a3a54e38",
+      "revisionId": "1d6df4ed-44a6-54c8-a037-fb2c29280f7a"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-07.md",
+      "code": "AIDU-AIM-01-07",
+      "title": "인공지능경영 매뉴얼 - 운용",
+      "kind": "manual",
+      "sha256": "19ed3769f0eafd9fc9b596e1d940935dded059a02d9311f825d37be8a3091f50",
+      "artifactId": "9d0d0e48-6671-5b26-9dfc-a58eca9beecb",
+      "revisionId": "86137fe8-8231-57de-a715-33b924177bf5"
+    },
+    {
+      "path": "docs/manual/AIDU-AIM-01-08.md",
+      "code": "AIDU-AIM-01-08",
+      "title": "인공지능경영 매뉴얼 - 성능평가 및 개선",
+      "kind": "manual",
+      "sha256": "32262d408b7446cb87b7d26df5dd6d7de1a1ebf4d89bf7ed18c45cf1d28fe1a4",
+      "artifactId": "baff97a7-31b7-5e20-bc35-ba1d2905d4ed",
+      "revisionId": "df63aaa0-5d01-547e-850d-30f2ac4cc485"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-00.md",
+      "code": "AIDU-AIP-00",
+      "title": "인공지능경영 절차서 - 절차서 목차 및 제정·개정 이력",
+      "kind": "index",
+      "sha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+      "artifactId": "445ff6b9-0966-5f98-964b-67dcfc2b35fd",
+      "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-04-01.md",
+      "code": "AIDU-AIP-04-01",
+      "title": "인공지능경영 절차서 - 조직상황분석",
+      "kind": "procedure",
+      "sha256": "6322d049e37e6440980db567a71910a01041b9f8f90497c60c8d69115d46a609",
+      "artifactId": "cc02b37e-9f25-5e33-9702-9d04760ce2c8",
+      "revisionId": "e902274d-536f-5dbe-b727-3ee5cea028c3"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-05-01.md",
+      "code": "AIDU-AIP-05-01",
+      "title": "인공지능경영 절차서 - 리더십 및 방침관리",
+      "kind": "procedure",
+      "sha256": "e9ad448f2a42921090d862f45bdd5060566b0c6184149f40f4b4b9671b44e79f",
+      "artifactId": "69a90179-ef29-592c-9380-dce09a160a02",
+      "revisionId": "bff79950-a7df-5331-86fc-8f510a949ae3"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-05-02.md",
+      "code": "AIDU-AIP-05-02",
+      "title": "인공지능경영 절차서 - 인공지능경영 조직 및 역할",
+      "kind": "procedure",
+      "sha256": "18f554592073a677350172a46462963635965650027c2353799c93c23b2d6ef7",
+      "artifactId": "b9bb0484-da3e-5477-8f10-0fbd98fcf32c",
+      "revisionId": "971b2ddd-c1f5-5570-a0e9-9643d794da24"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-06-01.md",
+      "code": "AIDU-AIP-06-01",
+      "title": "인공지능경영 절차서 - 리스크 평가 및 처리",
+      "kind": "procedure",
+      "sha256": "e0d65efba1f1d65885ae9f33cbd5fae96a05d5dda356134b22a322c0992ab3d4",
+      "artifactId": "2f8cdce7-69d5-520c-bb4b-85a3300b301b",
+      "revisionId": "27666b29-d228-573f-b9b9-14b2b20fbf7d"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-06-02.md",
+      "code": "AIDU-AIP-06-02",
+      "title": "인공지능경영 절차서 - 시스템 영향평가",
+      "kind": "procedure",
+      "sha256": "dfda0febc3c2b737b9445543347410c6fa9a18508618096ab39b660e3c7b07f2",
+      "artifactId": "018ea279-a8dd-5a92-9f9b-23652ca6fb8e",
+      "revisionId": "10843abc-3a7c-5071-9065-16a2082c1b94"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-06-03.md",
+      "code": "AIDU-AIP-06-03",
+      "title": "인공지능경영 절차서 - 목표 및 추진계획",
+      "kind": "procedure",
+      "sha256": "a02c77566a60f7d3fe645b751b02bd0835f85bf5c0f353ff2d083bfa5d7fb96c",
+      "artifactId": "7807a8c1-6baf-5492-9653-3bc813504bad",
+      "revisionId": "7dd99c5f-2dd6-506f-ba36-88ba61f7e6e9"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-07-01.md",
+      "code": "AIDU-AIP-07-01",
+      "title": "인공지능경영 절차서 - 시스템 자원",
+      "kind": "procedure",
+      "sha256": "62e55155ba10b04efd95f1c1e56708912d9315a9d95497d8245230570d7dba30",
+      "artifactId": "e1f8f18f-2ab2-5544-92b4-992c131269e2",
+      "revisionId": "cfcdb2b1-544e-5bf0-b7a9-99d7898a18f5"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-07-02.md",
+      "code": "AIDU-AIP-07-02",
+      "title": "인공지능경영 절차서 - 인적자원 및 교육·훈련",
+      "kind": "procedure",
+      "sha256": "0ed364429c8242923c60597b51fb72faa2ef67f4d740a6616e7e2f3bfe467238",
+      "artifactId": "83d455d0-6892-55ad-a773-5f6e4c01990c",
+      "revisionId": "d90dac67-17f2-596e-861e-69bd5792cac2"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-07-03.md",
+      "code": "AIDU-AIP-07-03",
+      "title": "인공지능경영 절차서 - 정보 및 기록관리",
+      "kind": "procedure",
+      "sha256": "76b5801ac6368bf17b3323659d5b2c5769ed8e8abcaa1b3230acf14d03406bde",
+      "artifactId": "ce42e91d-d1ab-51bc-94d4-d4ae340244e2",
+      "revisionId": "0fb4bd03-106e-5f6b-8398-a533bb5d6724"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-08-01.md",
+      "code": "AIDU-AIP-08-01",
+      "title": "인공지능경영 절차서 - 인공지능경영활동",
+      "kind": "procedure",
+      "sha256": "3b66f72b6aeabbe6c269aecaee880d014c45b6e3e504eb5fbe6d2bb108f38fc1",
+      "artifactId": "549338ce-c2c0-5552-8d49-61de12d398c0",
+      "revisionId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-09-01.md",
+      "code": "AIDU-AIP-09-01",
+      "title": "인공지능경영 절차서 - 성과측정 및 준수평가",
+      "kind": "procedure",
+      "sha256": "aa7dddb28b29195c88462278314978b8084f02d02d6730ae653e923dc2b72b14",
+      "artifactId": "d25ddd61-418c-52ea-8987-abb32ad97818",
+      "revisionId": "9d157787-d091-518c-b604-9a7548e7a293"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-09-02.md",
+      "code": "AIDU-AIP-09-02",
+      "title": "인공지능경영 절차서 - 내부심사",
+      "kind": "procedure",
+      "sha256": "f1511f2521e73475b0c86c9d705acdf09c65d8eaec905d3959de1963f6b6c1d5",
+      "artifactId": "1704a9ee-c7e9-5f1c-938a-10136b6b3130",
+      "revisionId": "4c97d7ea-4dee-52a7-9bce-22d900318ee7"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-09-03.md",
+      "code": "AIDU-AIP-09-03",
+      "title": "인공지능경영 절차서 - 경영검토",
+      "kind": "procedure",
+      "sha256": "9da2007a81e07641c93360863f6044b8925d82e42d66877ad17f0602e9f562dd",
+      "artifactId": "4da39936-cfb4-59c8-9ba9-9d5713b17f53",
+      "revisionId": "85b3b985-adf5-5b16-9d0f-4a97de99344b"
+    },
+    {
+      "path": "docs/procedure/AIDU-AIP-10-01.md",
+      "code": "AIDU-AIP-10-01",
+      "title": "인공지능경영 절차서 - 지속적 개선 및 부적합 시정조치",
+      "kind": "procedure",
+      "sha256": "7ca744f76f805d527d5892e381ee221d1cffefae784217da443b46d48e963af6",
+      "artifactId": "16c54079-075e-5427-9b5c-4beea7500469",
+      "revisionId": "4b8531ea-08ae-5f54-ba3e-4c4c40ebca27"
+    },
+    {
+      "path": "docs/guide/AIDU-AIG-00.md",
+      "code": "AIDU-AIG-00",
+      "title": "인공지능경영 지침서 - 지침서 목차 및 제정·개정 이력",
+      "kind": "index",
+      "sha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+      "artifactId": "fa02835c-dd6a-5e98-8074-ba25a6268800",
+      "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c"
+    },
+    {
+      "path": "docs/guide/AIDU-AIG-08-01.md",
+      "code": "AIDU-AIG-08-01",
+      "title": "인공지능경영 지침서 - 인공지능경영활동관리규정",
+      "kind": "guide",
+      "sha256": "da9937eb636c4931b6e8ba950cc2e8755fef815acf47f3bba598299221208608",
+      "artifactId": "4e6ab369-4fe0-5b25-9b7b-ac762594ae31",
+      "revisionId": "e4ab34fb-68e2-5d8b-a452-de65666bc884"
+    },
+    {
+      "path": "docs/guide/AIDU-AIG-08-02.md",
+      "code": "AIDU-AIG-08-02",
+      "title": "인공지능경영 지침서 - 시스템 수명 주기 및 데이터 관리지침서",
+      "kind": "guide",
+      "sha256": "dbd12216eeb6dfa38278efc5b7bcfecc97174a676a95308c82072a9d15b3129a",
+      "artifactId": "e73ee5e2-ded0-5530-8d40-529a818c6ec9",
+      "revisionId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-04-01-F01.md",
+      "code": "AIDU-AIP-04-01-F01",
+      "title": "조직상황 분석표",
+      "kind": "template",
+      "sha256": "a2f235b04f4aa0415f4ec21b8b4ebfaf203a90bbeb304acd82397eae6494cdec",
+      "artifactId": "48408569-fdbc-5465-8ddb-b78f52643489",
+      "revisionId": "191ca378-d191-51e5-8af0-537512920077",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-04-01-F02.md",
+      "code": "AIDU-AIP-04-01-F02",
+      "title": "이해관계자 및 요구사항 대장",
+      "kind": "template",
+      "sha256": "82e7bdbf8d2212f9ed93b1b2f7e687f2843d6f2a976fa1033bd054d520970e72",
+      "artifactId": "5e3927d5-3bb4-585c-826f-b56a51537030",
+      "revisionId": "053846df-b8d4-5a01-903f-42b65518f512",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-04-01-F03.md",
+      "code": "AIDU-AIP-04-01-F03",
+      "title": "AIMS 적용범위서",
+      "kind": "template",
+      "sha256": "345e059aefdeea54daed882ddc0b3ae735f1dcc3e5a07d7fd3251b7eea42d7eb",
+      "artifactId": "8af9b457-36d8-555b-b226-6f393c3e7563",
+      "revisionId": "58d0dd58-b485-53a2-b2a7-d5c6bf7798c4",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-04-01-F04.md",
+      "code": "AIDU-AIP-04-01-F04",
+      "title": "프로세스 상호관계표",
+      "kind": "template",
+      "sha256": "3fac5d0f31742ae29295481240750165ad55b3354f35f1aa6227df0f7d7b99d0",
+      "artifactId": "249316e0-e8c5-5586-a0ed-601418416bd5",
+      "revisionId": "8e3caac9-42da-5a0e-b8b8-2bab26fc4a46",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-04-01-F05.md",
+      "code": "AIDU-AIP-04-01-F05",
+      "title": "AI 법령 적용 판정 및 확인 요청 검토서",
+      "kind": "template",
+      "sha256": "ff53a861f903a6f0f13f6099a0533e7c855de1e41afb15e57efccec81d924a45",
+      "artifactId": "23794117-8b47-5131-a642-10176339b193",
+      "revisionId": "8274cb66-d442-5792-ba17-07a7ef50a599",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-01-F01.md",
+      "code": "AIDU-AIP-05-01-F01",
+      "title": "AI 방침 작성 양식",
+      "kind": "template",
+      "sha256": "b172d8b32c4d0e4ed227efffd4092d3e5c997dee6d02b40fd070f5cc10271300",
+      "artifactId": "f870d433-3f5c-5782-a011-8bdeaf98f35c",
+      "revisionId": "97d68cec-073a-5af6-adfd-5a174fda5f52",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-01-F02.md",
+      "code": "AIDU-AIP-05-01-F02",
+      "title": "방침 검토표",
+      "kind": "template",
+      "sha256": "5d37469653201e0896e3d99ca5b46bf81f0a62857660c507c3aae280e056db89",
+      "artifactId": "c38cbbc3-ba09-52f0-bf16-98a789564075",
+      "revisionId": "1b3e4532-5add-5020-ac95-a05ea5459c32",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-01-F03.md",
+      "code": "AIDU-AIP-05-01-F03",
+      "title": "경영진 보고 및 결정사항표",
+      "kind": "template",
+      "sha256": "42f5853bacd14abc2194dad036603b7cd0d788af77ba483294ace545d548439c",
+      "artifactId": "2aa119a6-c28f-529f-b5c2-c625c873e652",
+      "revisionId": "85eb6232-5047-5e48-a83f-4be0f8e9be03",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-02-F01.md",
+      "code": "AIDU-AIP-05-02-F01",
+      "title": "역할·권한 지정서",
+      "kind": "template",
+      "sha256": "857d32c9bafc4534eb317bce8f6052527d69874f1164960e1f7c828b3f2e5a33",
+      "artifactId": "24a294dd-ccc4-5a80-b176-c4f08ae98fa5",
+      "revisionId": "cd4cf678-cfd6-56f3-b31a-abf774aa43b4",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-02-F02.md",
+      "code": "AIDU-AIP-05-02-F02",
+      "title": "업무분장 및 이해충돌 검토표",
+      "kind": "template",
+      "sha256": "e730d9aea47cee5a764e36bafe76fae8617f412d6f5ffe60d3db53784ce4ca3a",
+      "artifactId": "4856c683-10a4-55a8-8636-c90558a056a5",
+      "revisionId": "c48b521f-00ca-5330-b4a4-ab1afbd14bad",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-02-F03.md",
+      "code": "AIDU-AIP-05-02-F03",
+      "title": "업무·권한 인계서",
+      "kind": "template",
+      "sha256": "dd3460494526571bb990a512c98aee09054283fc20f2bd23d9c251a15ae77096",
+      "artifactId": "e775a552-7c3c-52a3-8458-81c4a4ff7ca0",
+      "revisionId": "9d4afe1e-199a-567f-934d-2c9bd83f1771",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-05-02-F04.md",
+      "code": "AIDU-AIP-05-02-F04",
+      "title": "우려사항 접수·처리표",
+      "kind": "template",
+      "sha256": "986521facd841282823325a236be861a9aef70404ec6ce990efb7ab1aa8adb2f",
+      "artifactId": "220be42f-32cc-5c62-9121-f80268ca3f08",
+      "revisionId": "65585c91-9459-5404-991e-e064021ed8ed",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F01.md",
+      "code": "AIDU-AIP-06-01-F01",
+      "title": "리스크·기회 식별대장",
+      "kind": "template",
+      "sha256": "8287f20887d913272e34b9378d1874754b7e77ab6b00f93780d30e829c73d6f2",
+      "artifactId": "6f19e742-26dd-5d9a-918b-81defefd8217",
+      "revisionId": "352ee68e-0d27-51e1-bbe6-8dac3b08a491",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F02.md",
+      "code": "AIDU-AIP-06-01-F02",
+      "title": "리스크 평가표",
+      "kind": "template",
+      "sha256": "a634c6e34df2bf62654c9fb78de63d2855e128134ecf864d848d1807ab013c42",
+      "artifactId": "8be50b7f-b96e-552f-a01b-b00e46ab37cf",
+      "revisionId": "3ee03549-51d1-5e8e-931a-2e5d803e47a6",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F03.md",
+      "code": "AIDU-AIP-06-01-F03",
+      "title": "리스크 처리·기회 추진안",
+      "kind": "template",
+      "sha256": "9985bc30715972e5b362d3ae81de905c19182d5d77710ba99295ec427144c41e",
+      "artifactId": "1e5bf80a-6743-5b2f-9e29-083f51914a0c",
+      "revisionId": "0cae1ee7-c236-54f3-bdc7-9edc5afd512b",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F04.md",
+      "code": "AIDU-AIP-06-01-F04",
+      "title": "적용성 기술서",
+      "kind": "template",
+      "sha256": "33d1d5ba608334e7d20db5c193c8c4c9268cb93cddb6eed7bd3d9847ee8775de",
+      "artifactId": "a5bdc90f-619a-517d-8693-eaf696ae127f",
+      "revisionId": "6c57ae5c-b1e3-5408-9730-46153f746e70",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F05.md",
+      "code": "AIDU-AIP-06-01-F05",
+      "title": "처리 검증 및 잔여 리스크 수용서",
+      "kind": "template",
+      "sha256": "5c6e19f5ca97009fa8aab5b367c75bb5c62e6f8c4d8251ac3903f4f41f3a7061",
+      "artifactId": "da261095-a301-5e0c-965b-09adb7d59d2d",
+      "revisionId": "0e2d97bd-9ce1-5ce3-9fee-ff5adbd54e13",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-01-F06.md",
+      "code": "AIDU-AIP-06-01-F06",
+      "title": "리스크 관리 범위·맥락·기준 및 협의 계획서",
+      "kind": "template",
+      "sha256": "c2df88650e96fadec62df2a1c5c4cd0e28c5e2c2893fe9d2afb0538e8ddb51f7",
+      "artifactId": "761e2110-bbf9-529e-a307-8b3d2f611f3a",
+      "revisionId": "9e62bf12-4955-5957-930d-db61aac7f4f1",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-02-F01.md",
+      "code": "AIDU-AIP-06-02-F01",
+      "title": "영향평가 계획·범위서",
+      "kind": "template",
+      "sha256": "b8cd51b3b23d8f958f95380665b37d49a3b24f573950db84ce63359a46e56e88",
+      "artifactId": "b77a7e16-d265-5f1f-afa2-840dac04ddbd",
+      "revisionId": "d4b4a8a7-2884-52dd-b7e3-d6882d9ea381",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-02-F02.md",
+      "code": "AIDU-AIP-06-02-F02",
+      "title": "영향평가서",
+      "kind": "template",
+      "sha256": "ef95b268eb06002980406ce2af7ce49b4f9025d52a6c543bbbdeaccf7f073463",
+      "artifactId": "ce74d4a1-bd5d-5a3f-9489-e5994982cb60",
+      "revisionId": "fe616383-24b6-56af-9423-4dfd60baccf8",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-02-F03.md",
+      "code": "AIDU-AIP-06-02-F03",
+      "title": "영향평가 결과 제공·갱신표",
+      "kind": "template",
+      "sha256": "d0f8812a62f63297200a074f3b1cafe4aa09c7a8182fd36cf1562a258ebb21a7",
+      "artifactId": "8753049f-e854-5343-880f-321038f6ffea",
+      "revisionId": "8f9a3d87-e9ce-5311-bcb6-b4f4ef43a88d",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-02-F04.md",
+      "code": "AIDU-AIP-06-02-F04",
+      "title": "윤리 쟁점·대안 검토 및 이해관계자 협의서",
+      "kind": "template",
+      "sha256": "1ad99e6ffc8d263e2869b58b3c924b71d3303ca95e8315f9afdbcdbcb6f2adb4",
+      "artifactId": "d86092d5-2d5d-5be2-bd4e-bd2ee5123c4b",
+      "revisionId": "9b54dca0-0b5b-5692-be34-06f432538720",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-03-F01.md",
+      "code": "AIDU-AIP-06-03-F01",
+      "title": "AI 목표표",
+      "kind": "template",
+      "sha256": "f539d0f21a594ded9be9a29e99a970348b0eefb532756bf043b868f15ece9b7a",
+      "artifactId": "a7027876-e019-58a2-ad76-389907bbec26",
+      "revisionId": "e2f51926-5c30-5279-9017-a5960e654b76",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-03-F02.md",
+      "code": "AIDU-AIP-06-03-F02",
+      "title": "추진계획 및 실적표",
+      "kind": "template",
+      "sha256": "9da1e71adbdd4943f45c89199edf66376a88f3b79ef26242a3769742d34fbc2d",
+      "artifactId": "6d39b211-75e1-5b84-8a5c-af5699c20e94",
+      "revisionId": "48beaced-a02d-5d80-809a-7de923d06586",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-06-03-F03.md",
+      "code": "AIDU-AIP-06-03-F03",
+      "title": "AIMS 변경계획·완료서",
+      "kind": "template",
+      "sha256": "9b3c60a272563db449a9f21a6e8c3fb8c5152db9c973fbf6fdb5099a85860173",
+      "artifactId": "81c32474-b09c-5624-a518-5678360d2897",
+      "revisionId": "3cdec015-e270-5c56-899a-1aa76531f8de",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-01-F01.md",
+      "code": "AIDU-AIP-07-01-F01",
+      "title": "자원 소요·확보 계획서",
+      "kind": "template",
+      "sha256": "96b7fd8e5a89234735ce4ca73826b79ab1282213e5812a65210f56a1d7c9fd96",
+      "artifactId": "d59596e3-35bb-5521-aa3a-54e0c4d7b6e7",
+      "revisionId": "bdd23e7e-b2c4-55c0-b73d-19f7ac6f0197",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-01-F02.md",
+      "code": "AIDU-AIP-07-01-F02",
+      "title": "자원 목록 및 점검표",
+      "kind": "template",
+      "sha256": "6fba970e18967997521c204b2241186b794ac2740c5a0053ff39a31c5325cb5a",
+      "artifactId": "d5967024-06b1-5ddc-b238-95f774bb8d07",
+      "revisionId": "a29cb1f6-f53e-540f-83a9-c80de8a39900",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-01-F03.md",
+      "code": "AIDU-AIP-07-01-F03",
+      "title": "접근권한 신청·변경·회수서",
+      "kind": "template",
+      "sha256": "1965bfe0893470565711553ab8889322b6cce99e578462fdd2445e15756e587e",
+      "artifactId": "f18c45de-5a29-59db-8073-b9a523e1acf2",
+      "revisionId": "cdda53d2-48e3-5055-be50-622e1fd4a011",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-01-F04.md",
+      "code": "AIDU-AIP-07-01-F04",
+      "title": "자원 변경·종료 확인서",
+      "kind": "template",
+      "sha256": "45b679a3a6b7b60252d4b9aa95e1d8620d72b573695bb888905f80649acc22d7",
+      "artifactId": "3cd98a12-10bd-5f8e-b573-b6aa725f29ec",
+      "revisionId": "f014e609-e2ae-5e92-afe1-5ff3f5d7ccb7",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-02-F01.md",
+      "code": "AIDU-AIP-07-02-F01",
+      "title": "역할별 역량 기준·평가표",
+      "kind": "template",
+      "sha256": "27c3879849ba4136ee084c10d13d025fb3fcf2fb296a4a85f31bfac2c76e4e51",
+      "artifactId": "544bd171-af68-5a50-9a10-2e74837a157d",
+      "revisionId": "532aeecc-62f1-5495-b720-d16e7c1f60a8",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-02-F02.md",
+      "code": "AIDU-AIP-07-02-F02",
+      "title": "역량 확보 및 교육계획서",
+      "kind": "template",
+      "sha256": "05beda360d4fa1785b8400ef4c744f01ae7500ee60c4aadccb194c7a631079b4",
+      "artifactId": "1b44e824-c2a8-5bc9-9f53-f17ccbbd3896",
+      "revisionId": "dbe9e5ce-b725-5d22-9b04-4600889e0173",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-02-F03.md",
+      "code": "AIDU-AIP-07-02-F03",
+      "title": "교육·조치 실행 및 효과성 평가서",
+      "kind": "template",
+      "sha256": "a25de5abe594b2a3f775c2c414fe84354503b941db8c5f3896263644a419ac8f",
+      "artifactId": "fa594a94-e07f-50d5-bc2c-e3c691cac2e2",
+      "revisionId": "f1cf31df-8e64-59db-ad7d-32f03dff9fb6",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-02-F04.md",
+      "code": "AIDU-AIP-07-02-F04",
+      "title": "인식 전달·확인표",
+      "kind": "template",
+      "sha256": "116f5187fd2f18e0237dc3a1b99e934a0fe9f9b7f4786a9acb128273e8391a22",
+      "artifactId": "af863979-d82f-5bd9-be65-5a9b671d9253",
+      "revisionId": "15a2f4d2-754f-5277-8fe5-8001b4674448",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-03-F01.md",
+      "code": "AIDU-AIP-07-03-F01",
+      "title": "문서·기록 관리대장",
+      "kind": "template",
+      "sha256": "36cd9802336cde0fc3424aa579b9aedda2ff6453d811473548dca54498fe85c0",
+      "artifactId": "c28dcaee-0346-5ebd-a66f-17756c9fb869",
+      "revisionId": "ea90201a-d5cd-5379-9345-1d094f11f166",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-03-F02.md",
+      "code": "AIDU-AIP-07-03-F02",
+      "title": "문서 제·개정 검토·승인서",
+      "kind": "template",
+      "sha256": "d1c058bf47b8db1c709f07a55041879753ca46234b341d805e97a70c62761676",
+      "artifactId": "780a64c8-ad1d-5833-98ac-1ef2e13ee42d",
+      "revisionId": "a1ddcdfa-7c75-5670-9da5-b738e0ac9425",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-03-F03.md",
+      "code": "AIDU-AIP-07-03-F03",
+      "title": "외부 출처 정보대장",
+      "kind": "template",
+      "sha256": "607022e38d2ea0ea983ff5891f02b5384117ea47b70cdc715df5af587c2d9191",
+      "artifactId": "901bd428-6d2c-50ec-8546-336bf1440eac",
+      "revisionId": "1c45d2f8-1f6f-50ed-aa5a-439e0dada00f",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-03-F04.md",
+      "code": "AIDU-AIP-07-03-F04",
+      "title": "정보 보유·보호·폐기 관리표",
+      "kind": "template",
+      "sha256": "e479ee12422bca3e62c040e499434571b2136174b87f77aa5c6a816347e7fe40",
+      "artifactId": "9e8c933e-967f-5290-81fb-17b1371a8335",
+      "revisionId": "463bcc7c-8074-571e-bdcc-5f5230301782",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-07-03-F05.md",
+      "code": "AIDU-AIP-07-03-F05",
+      "title": "의사소통 계획 및 실행대장",
+      "kind": "template",
+      "sha256": "2a890fc08603d2f8be2eede1c06028d5797717a023f5d94528d7ca7a8f144826",
+      "artifactId": "7ea44d08-cc9f-51f4-89e3-997e8987d5f9",
+      "revisionId": "335ef4e3-8e06-555c-8bfb-d94e5011fd62",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F01.md",
+      "code": "AIDU-AIP-08-01-F01",
+      "title": "AI 시스템 명세 및 수명주기 계획서",
+      "kind": "template",
+      "sha256": "269ab7a1700abce9f566e53f105fb9eb8da57294794982dde60804929d353181",
+      "artifactId": "a06072c5-7d50-5a85-9ea6-b41d0ac8854c",
+      "revisionId": "ab25416b-6165-5488-801b-31378a069d59",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F02.md",
+      "code": "AIDU-AIP-08-01-F02",
+      "title": "데이터 수명주기 관리표",
+      "kind": "template",
+      "sha256": "d4845055a9dcb8f3a53b259c9ae598c54711b7163659549e1eaa65b82fb6ec8c",
+      "artifactId": "314a22ef-aa14-59af-99b8-4715825a605a",
+      "revisionId": "21d3ea85-65e4-5f81-8b5e-a11d4954c7bc",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F03.md",
+      "code": "AIDU-AIP-08-01-F03",
+      "title": "검증·타당성 확인 계획 및 결과서",
+      "kind": "template",
+      "sha256": "e9d069216721f022f0719994571863308ddf84525f313222cb1e7ac6b4285dc6",
+      "artifactId": "e07f83d6-b2a6-531f-9dca-ac8282d61f02",
+      "revisionId": "b75442c5-e9d4-5969-99f0-8f7fc548a2e4",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F04.md",
+      "code": "AIDU-AIP-08-01-F04",
+      "title": "공급자·고객 요구 및 책임 검토서",
+      "kind": "template",
+      "sha256": "20c90cf533cb952a1349e2a660799a0ceed809277eb17acf2e0ffcf764c81b83",
+      "artifactId": "87b5fc7f-a004-55db-abb2-e61dc07bbf77",
+      "revisionId": "c622c54a-e4dc-5d85-a4f4-460bb516691e",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F05.md",
+      "code": "AIDU-AIP-08-01-F05",
+      "title": "배포·변경·인계 승인서",
+      "kind": "template",
+      "sha256": "d880b83e48743a0edf1d5dcac54cb73ea4f4fbe45013cbc3b1c2783449105925",
+      "artifactId": "759600a1-5da2-5c32-841f-6b1fcbfa8f75",
+      "revisionId": "d454a7b6-4335-5aa2-843b-50203b8ef029",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F06.md",
+      "code": "AIDU-AIP-08-01-F06",
+      "title": "운영·사건 대응대장",
+      "kind": "template",
+      "sha256": "fe82c4922a4326d4735b5d6998c8047e0e63777e01b00b7031b6f4e95b9f25a9",
+      "artifactId": "adf9120b-22db-57c8-ab2d-3d881608070b",
+      "revisionId": "af66340d-2e74-513a-b5ce-b6e017fe27d6",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F07.md",
+      "code": "AIDU-AIP-08-01-F07",
+      "title": "고객·피영향자 불만 및 이의제기 처리서",
+      "kind": "template",
+      "sha256": "dd63daa5590e0bea9517b8805bdf49d6fad98db09c2d1c97e7ce29f0b9a211bc",
+      "artifactId": "589a0818-9c53-5d21-a4c9-17c00ddd5419",
+      "revisionId": "59dc6816-97a8-5e92-bf50-df0890120885",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F08.md",
+      "code": "AIDU-AIP-08-01-F08",
+      "title": "시스템 종료 계획 및 확인서",
+      "kind": "template",
+      "sha256": "e55b5c13310a0bbab939d69f9642949d34ee7d3191a285cf4335be219d442bd0",
+      "artifactId": "cddc2c88-20ea-53a4-b0cd-9c04d86805ff",
+      "revisionId": "9c1f0fe7-d6ef-5a60-a61a-b6ab7159ac5f",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F09.md",
+      "code": "AIDU-AIP-08-01-F09",
+      "title": "AI 투명성·설명·인간 감독 확인서",
+      "kind": "template",
+      "sha256": "b6eb4e15ae2dd89b77e04e9758660afca92afb7c2bcdfc404efa6f02f6e23644",
+      "artifactId": "9081b8fd-a6b5-5cb3-8e9c-1aef6f7ce733",
+      "revisionId": "ae8e0a58-a0a5-5262-97f6-ef24ce830e36",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-08-01-F10.md",
+      "code": "AIDU-AIP-08-01-F10",
+      "title": "고영향 AI·안전성 법정 책무 이행 확인서",
+      "kind": "template",
+      "sha256": "8bf363b9012abe778910104788ffce49b09c6ae4bcca263316312ded21ed6b9c",
+      "artifactId": "480453e3-a3bd-5048-a55e-a85b1baba51c",
+      "revisionId": "915d9949-77b5-5e92-9be5-2cea2d24d1b6",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-01-F01.md",
+      "code": "AIDU-AIP-09-01-F01",
+      "title": "모니터링·측정·평가 계획서",
+      "kind": "template",
+      "sha256": "7952baeb5c4f630ce81b4618704b2873f25e66da6e20bbaa747ccd9763b53e87",
+      "artifactId": "f2a1a207-57f6-50b9-bf3e-09ce4e4312dd",
+      "revisionId": "4971077d-ec3a-52cc-9927-3f76614913b3",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-01-F02.md",
+      "code": "AIDU-AIP-09-01-F02",
+      "title": "성과 분석·평가 보고서",
+      "kind": "template",
+      "sha256": "42848352d76bdf71ebd11d7e4f84615d73947d6880c3f84b07f979c6677370d6",
+      "artifactId": "c22388f7-8ac8-558d-b107-811f09b029f3",
+      "revisionId": "e9974b1b-ace5-55e1-877f-1d51f23abae5",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-01-F03.md",
+      "code": "AIDU-AIP-09-01-F03",
+      "title": "준수평가 및 후속조치표",
+      "kind": "template",
+      "sha256": "b44c592072819afbe52400a417854d778a0ab19804842492a718c57f27dc8fa0",
+      "artifactId": "1903e8f2-5a88-54a5-9933-fe50b492afa2",
+      "revisionId": "83375c5f-d1f0-5733-a645-458a5b36e536",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-02-F01.md",
+      "code": "AIDU-AIP-09-02-F01",
+      "title": "내부심사 프로그램",
+      "kind": "template",
+      "sha256": "70f5ce0e86e8cde1f4f2cbca8329af0ee3624e02d8b6db29ebff7255c5981337",
+      "artifactId": "67c37c13-079d-55ce-955f-39bbc0001089",
+      "revisionId": "6c57e94c-e189-5286-94b5-341ddb34b96e",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-02-F02.md",
+      "code": "AIDU-AIP-09-02-F02",
+      "title": "개별 심사계획 및 심사원 배정표",
+      "kind": "template",
+      "sha256": "6a242d47e86d67f0eb4c51972871a84ad69dacedc5c6f558a724b5c9258e54d6",
+      "artifactId": "3195aa93-b130-5215-8db7-01ebc4335b96",
+      "revisionId": "3ac30341-a3b4-53ed-8be3-dced34acb46a",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-02-F03.md",
+      "code": "AIDU-AIP-09-02-F03",
+      "title": "내부심사 보고 및 발견사항표",
+      "kind": "template",
+      "sha256": "8c8876c0b048fe167e56e83b3a1eeebebc36e8458c16ae5804de48ea9f8cfa57",
+      "artifactId": "8e0708c9-911e-5cb6-b0f8-6f8cdedca5a0",
+      "revisionId": "1f9f7920-a14d-5d44-8e99-3fb27b82365d",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-02-F04.md",
+      "code": "AIDU-AIP-09-02-F04",
+      "title": "내부심사 후속 확인표",
+      "kind": "template",
+      "sha256": "1ad93e9ffbd48ec159cd0b5786a1e53970890186fbe309b417fbc3a264bdccaf",
+      "artifactId": "ff179de0-3d02-579e-9f93-65e2a34f1581",
+      "revisionId": "0f86c460-e59e-52da-a691-b567b6cef3f0",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-03-F01.md",
+      "code": "AIDU-AIP-09-03-F01",
+      "title": "경영검토 계획 및 입력자료표",
+      "kind": "template",
+      "sha256": "ca99deeb863f2b5ba5b5d39fdb785804bc7062c8c7dce77ff73c1dd9901e4afe",
+      "artifactId": "868d9e13-b638-5efd-a163-16a74fc95390",
+      "revisionId": "aa8a0e81-3c44-5714-81d4-1a9504ae3950",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-09-03-F02.md",
+      "code": "AIDU-AIP-09-03-F02",
+      "title": "경영검토 결과 및 후속조치표",
+      "kind": "template",
+      "sha256": "ae8cf0d9e5a87e9268516242ac6ca09a5027941709ffbd57e7a289e4058bd018",
+      "artifactId": "f878419f-0920-57ac-8823-f7c1f4fba502",
+      "revisionId": "880c42cf-bbcb-57bb-98cd-c715f2706540",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-10-01-F01.md",
+      "code": "AIDU-AIP-10-01-F01",
+      "title": "부적합·개선 접수대장",
+      "kind": "template",
+      "sha256": "1062f572b689f3d6fe8a4b7a2a535f9c2288e85ef76b1707f4f69c3515dd16ae",
+      "artifactId": "25f079a8-9b8a-5971-bb65-1d687efc4aed",
+      "revisionId": "79bb3c43-f3fe-58f1-a5f7-0805b3e7c8a8",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-10-01-F02.md",
+      "code": "AIDU-AIP-10-01-F02",
+      "title": "부적합 시정조치 및 효과성 확인서",
+      "kind": "template",
+      "sha256": "676c9b529b61413ec6e2f21e75d99398922b67f9d691b2b99aeb0647ef7c6c43",
+      "artifactId": "52e06673-5946-5b67-8e32-fdea3f38c496",
+      "revisionId": "cf4215bc-ad2b-590d-9437-5f968924c166",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/AIDU-AIP-10-01-F03.md",
+      "code": "AIDU-AIP-10-01-F03",
+      "title": "지속적 개선 검토·실행대장",
+      "kind": "template",
+      "sha256": "cdd7f386e81273eedd585c099df076a604f5c50c39c1044342e2be0829a0aafa",
+      "artifactId": "cd4b0600-5bfc-564c-88b9-9a6ed9019ec8",
+      "revisionId": "1e11b2b4-01ae-50a0-a871-ea33eff3a572",
+      "templateVersion": "2.0"
+    },
+    {
+      "path": "docs/forms/README.md",
+      "code": "AIDU-FORMS-INDEX",
+      "title": "문서양식 목차",
+      "kind": "index",
+      "sha256": "f166cb1487b0c9a9df33a5d9b1c6c87165d11ba8436100838a2e6cbe86e2f1f1",
+      "artifactId": "fb9a3f16-a438-5d33-b015-1119d0d5b337",
+      "revisionId": "0fb7cb37-4360-5fc3-89fc-f063d053ee56"
+    }
+  ]
+}

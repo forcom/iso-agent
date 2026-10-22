@@ -1,3 +1,5 @@
+import type { WikiClaim } from "../../../packages/wiki/src/index";
+
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
@@ -46,7 +48,7 @@ export interface SeedPayload {
     id?: string;
     title: string;
     status?: "draft" | "approved";
-    claims: unknown[];
+    claims: WikiClaim[];
     links?: string[];
   }[];
 }

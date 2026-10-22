@@ -52,6 +52,8 @@ await cp(
   join(publicDir, "seed/example-persons-roles.json"),
 );
 await cp(join(root, "seed/schema.json"), join(publicDir, "seed/schema.json"));
+await cp(join(root, "packages/ontology/rules.dl"), join(publicDir, "rules.dl"));
+await cp(join(root, "packages/ontology/rules.dl"), join(root, "apps/engine/rules.dl"));
 
 console.log(
   `corpus-manifest: ${docFiles.length} docs, ${recordFiles.length} records`,

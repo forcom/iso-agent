@@ -16,6 +16,7 @@ import {
 } from "./lib/store";
 import { scanDocuments, scanRecords } from "./lib/records";
 import { openaiComplete } from "./lib/llm";
+import { selectGraphFacts, selectWikiContext, type ContextEntity, type StoredWikiPage } from "./lib/wiki";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -174,7 +175,7 @@ app.post("/api/seed/import", async (c) => {
 
 app.get("/api/wiki", async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT id, title, status, body_md, updated_at FROM wiki_pages ORDER BY title`,
+    `SELECT id, title, status, body_md, claims_json, links_json, updated_at FROM wiki_pages ORDER BY title`,
   ).all();
   return c.json({ pages: results ?? [] });
 });
@@ -240,14 +241,20 @@ app.post("/api/ask", async (c) => {
   const body = await c.req.json<{ question: string }>();
   const facts = await getApprovedFacts(c.env.DB);
   const engine = new OntologyEngine(facts);
-  const wiki = await c.env.DB.prepare(
-    `SELECT id, title, body_md, status FROM wiki_pages WHERE status = 'approved' LIMIT 20`,
-  ).all();
+  const wikiRows = await c.env.DB.prepare(
+    `SELECT id, title, body_md, status, claims_json FROM wiki_pages WHERE status = 'approved'`,
+  ).all<StoredWikiPage>();
+  const wiki = selectWikiContext(body.question, wikiRows.results ?? []);
+  const entities = await c.env.DB.prepare(`SELECT id, name, aliases_json FROM entities`).all<ContextEntity>();
+  const contextFacts = selectGraphFacts(body.question, entities.results ?? [], facts, wiki.flatMap(p => p.fact_ids));
+  const linkedFacts = new Set(contextFacts.map(f => f.id));
+  const requirements = new Set(contextFacts.filter(f => f.predicate === "addresses" || f.predicate === "evidence_for").map(f => f.object));
 
   const graphCtx = {
-    evidence: engine.evidenceCandidates(),
-    missing: engine.missingEvidence(),
-    edges_sample: engine.allEdges().slice(0, 80),
+    evidence: engine.evidenceCandidates().filter(e => requirements.has(e.requirement)),
+    missing: engine.missingEvidence([...requirements]),
+    edges_sample: engine.allEdges().filter(e => linkedFacts.has(e.factId)).slice(0, 80),
+    facts: contextFacts,
   };
 
   const system = `You are an AIMS ontology assistant for AIDU / Edu Score.
@@ -255,12 +262,15 @@ Answer using ONLY the provided approved graph facts and wiki.
 Distinguish: normative (seed) vs record (auto_approved) knowledge.
 Never claim ISO conformity or requirement satisfaction; evidence is candidate only.
 Cite fact ids when possible. If unknown, say so.
+For procedural questions, explain the quoted operational steps and conditions.
+Cite the document ID, clause number and exact source_ref supplied in the wiki.
+Keep local /docs/ paths as local paths; never invent a hostname or source URL.
 Respond in Korean.`;
 
   const user = `Question: ${body.question}
 
 Approved wiki:
-${JSON.stringify(wiki.results ?? [], null, 2)}
+${JSON.stringify(wiki.map(({id,title,body_md}) => ({id,title,body_md})), null, 2)}
 
 Graph context:
 ${JSON.stringify(graphCtx, null, 2)}`;
@@ -294,7 +304,11 @@ ${JSON.stringify(graphCtx, null, 2)}`;
     answer,
     citations: {
       graph: graphCtx.evidence.slice(0, 10),
-      wiki: (wiki.results ?? []).map((w: { id: string }) => w.id),
+      wiki: wiki.map(w => w.id),
+      sources: wiki.flatMap(w => w.claims.filter(c => c.source_ref).map(c => ({
+        wiki_id: w.id, document_id: c.source_document_id, source_ref: c.source_ref,
+        source_sha: c.source_sha, quote: c.quote,
+      }))),
     },
     grounding: ["graph", "wiki"],
   });

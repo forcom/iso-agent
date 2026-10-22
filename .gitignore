@@ -19,3 +19,7 @@ dist/
 .dev.vars.local
 *.log
 .pnpm-store/
+
+# Python engine
+__pycache__/
+*.py[cod]

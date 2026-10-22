@@ -1,6 +1,7 @@
 import type { Env, SeedPayload } from "../types";
 import type { OntologyFact } from "./ontology";
 import { sha256Hex } from "./ontology";
+import { normalizeWikiClaims, pageToMarkdown } from "../../../../packages/wiki/src/index";
 
 export async function listPersons(db: D1Database) {
   return db
@@ -149,16 +150,8 @@ export async function importSeed(
   for (const w of seed.wiki_pages ?? []) {
     const id =
       w.id ?? `wiki:${await sha256Hex(w.title + JSON.stringify(w.claims))}`;
-    const body = [
-      `# ${w.title}`,
-      "",
-      ...(w.claims as { heading?: string; text?: string }[]).flatMap((c) => [
-        `## ${c.heading ?? "Claim"}`,
-        "",
-        c.text ?? "",
-        "",
-      ]),
-    ].join("\n");
+    const claims = normalizeWikiClaims(w.claims);
+    const body = pageToMarkdown({ ...w, id, claims, status: w.status ?? "draft" });
     report.wiki++;
     if (opts.dryRun) continue;
     await db
@@ -175,7 +168,7 @@ export async function importSeed(
         w.title,
         w.status ?? "draft",
         body,
-        JSON.stringify(w.claims),
+        JSON.stringify(claims),
         JSON.stringify(w.links ?? []),
       )
       .run();
@@ -302,7 +295,7 @@ export async function requirePermission(
   env: Env,
   personId: string | null,
   permission: string,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; status: 401 | 403; error: string }> {
   if (!personId) {
     return { ok: false, status: 401, error: "select a person first" };
   }

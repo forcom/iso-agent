@@ -1,10 +1,9 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-RUN pip install --no-cache-dir fastapi uvicorn pyrewire==1.1.2 || \
-    pip install --no-cache-dir fastapi uvicorn
+RUN pip install --no-cache-dir fastapi uvicorn pyrewire==1.1.2
 
-COPY server.py rules.dl ./
+COPY server.py wirelog.py rules.dl ./
 
 ENV PORT=8080
 EXPOSE 8080

@@ -1,6 +1,41 @@
-edge(X,P,Y) :- fact(X,P,Y).
-direct(X,P,Y) :- edge(X,P,Y).
-reach(X,P,Y) :- edge(X,P,Y).
-reach(X,P,Z) :- edge(X,P,Y), reach(Y,P,Z).
+// ISO-agent rules. Only approved/auto_approved triples are inserted into fact.
+.decl fact(subject: symbol, predicate: symbol, object: symbol)
+.decl direct(subject: symbol, predicate: symbol, object: symbol)
+.decl addresses(document: symbol, requirement: symbol)
+.decl requires_record(document: symbol, template: symbol)
+.decl instance_of(record: symbol, template: symbol)
+.decl evidence_for(record: symbol, target: symbol)
+.decl depends_on(subject: symbol, object: symbol)
+.decl holds_role(person: symbol, role: symbol)
+.decl grants(role: symbol, permission: symbol)
+.decl impact_item(subject: symbol, root: symbol)
+.decl has_permission(person: symbol, permission: symbol)
+.decl trace_document(requirement: symbol, document: symbol)
+.decl trace_template(requirement: symbol, document: symbol, template: symbol)
+.decl trace_record(requirement: symbol, record: symbol, template: symbol)
+.decl evidence_path(record: symbol, requirement: symbol, document: symbol, template: symbol)
+.decl evidence_candidate(record: symbol, requirement: symbol)
+.decl populated_template(template: symbol)
+.decl missing_evidence(requirement: symbol, document: symbol, template: symbol)
+
+direct(S,P,O) :- fact(S,P,O).
+addresses(D,R) :- fact(D,"addresses",R).
+requires_record(D,T) :- fact(D,"requires_record",T).
+instance_of(R,T) :- fact(R,"instance_of",T).
+evidence_for(R,T) :- fact(R,"evidence_for",T).
+depends_on(S,O) :- fact(S,"depends_on",O).
+holds_role(P,R) :- fact(P,"holds_role",R).
+grants(R,P) :- fact(R,"grants",P).
+
+// Transitivity is limited to change dependencies; it never implies conformity.
 impact_item(X,Y) :- depends_on(X,Y).
 impact_item(X,Z) :- depends_on(X,Y), impact_item(Y,Z).
+has_permission(P,M) :- holds_role(P,R), grants(R,M).
+trace_document(R,D) :- addresses(D,R).
+trace_template(R,D,T) :- addresses(D,R), requires_record(D,T).
+trace_record(R,E,T) :- trace_template(R,D,T), instance_of(E,T).
+evidence_path(E,R,D,T) :- trace_template(R,D,T), instance_of(E,T).
+evidence_candidate(E,R) :- evidence_path(E,R,D,T).
+evidence_candidate(E,R) :- evidence_for(E,R).
+populated_template(T) :- instance_of(E,T).
+missing_evidence(R,D,T) :- trace_template(R,D,T), !populated_template(T).

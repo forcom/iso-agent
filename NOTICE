@@ -1,0 +1,25 @@
+iso-agent
+Copyright (c) 2026 iso-agent contributors
+
+This product is licensed under the Mozilla Public License, v. 2.0.
+See LICENSE for the full license text.
+
+---------------------------------------------------------------------------
+Third-party notices
+
+Wirelog (libwirelog)
+  License: LGPL-3.0-or-later / Commercial dual license
+  https://github.com/semantic-reasoning/wirelog
+
+PyreWire
+  License: Apache-2.0 OR GPL-3.0-or-later (user choice)
+  https://github.com/semantic-reasoning/PyreWire
+
+Design patterns for approval workflows, citation hashing, and
+approved-knowledge-first Q&A were informed by:
+  - Verinote (MPL-2.0) — https://github.com/ (local reference project)
+  - llmwiki-demos (Apache-2.0)
+
+KS/ISO raw standard texts under .raw/ are NOT redistributed with this
+open-source release and remain subject to their own copyright terms.
+---------------------------------------------------------------------------

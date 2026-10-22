@@ -4,9 +4,18 @@
 # 비밀값·환경 변수
 .dev.vars
 .dev.vars.*
+**/.dev.vars
 .env
 .env.*
 !.env.example
 
 # OS·편집기
 .DS_Store
+
+# Node / Cloudflare
+node_modules/
+dist/
+.wrangler/
+.dev.vars.local
+*.log
+.pnpm-store/

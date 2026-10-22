@@ -1,0 +1,88 @@
+{
+  "relations": [
+    {
+      "id": "addresses",
+      "description": "문서·활동이 요구사항을 다룸",
+      "subject_types": ["Document", "Activity", "Process"],
+      "object_types": ["Requirement"],
+      "transitive": false
+    },
+    {
+      "id": "governed_by",
+      "description": "활동·기록이 절차·지침의 통제를 받음",
+      "subject_types": ["Activity", "Record", "Process"],
+      "object_types": ["Document"],
+      "transitive": false
+    },
+    {
+      "id": "requires_record",
+      "description": "절차가 특정 양식의 기록을 요구함",
+      "subject_types": ["Document", "Activity", "Process"],
+      "object_types": ["RecordTemplate"],
+      "transitive": false
+    },
+    {
+      "id": "instance_of",
+      "description": "기록이 양식의 인스턴스임",
+      "subject_types": ["Record"],
+      "object_types": ["RecordTemplate"],
+      "transitive": false
+    },
+    {
+      "id": "evidence_for",
+      "description": "기록이 활동·평가·요구의 증거 후보임(충족 판정 아님)",
+      "subject_types": ["Record"],
+      "object_types": ["Activity", "Requirement", "Assessment", "Process"],
+      "transitive": false
+    },
+    {
+      "id": "depends_on",
+      "description": "변경 영향 분석용 의존",
+      "subject_types": ["Document", "Activity", "AISystem", "Process", "Assessment"],
+      "object_types": ["Document", "Activity", "AISystem", "Process", "RecordTemplate"],
+      "transitive": true
+    },
+    {
+      "id": "mitigates",
+      "description": "통제가 리스크를 다룸",
+      "subject_types": ["Control", "Activity"],
+      "object_types": ["Risk"],
+      "transitive": false
+    },
+    {
+      "id": "supersedes",
+      "description": "새 개정이 이전을 대체",
+      "subject_types": ["DocumentVersion", "Record", "Document"],
+      "object_types": ["DocumentVersion", "Record", "Document"],
+      "transitive": false
+    },
+    {
+      "id": "about_system",
+      "description": "대상 AI 시스템",
+      "subject_types": ["Record", "Document", "Assessment", "Activity"],
+      "object_types": ["AISystem"],
+      "transitive": false
+    },
+    {
+      "id": "holds_role",
+      "description": "사람이 역할을 보유",
+      "subject_types": ["Person"],
+      "object_types": ["Role"],
+      "transitive": false
+    },
+    {
+      "id": "grants",
+      "description": "역할이 권한을 부여",
+      "subject_types": ["Role"],
+      "object_types": ["Permission"],
+      "transitive": false
+    },
+    {
+      "id": "produced_by",
+      "description": "기록이 절차에서 산출됨",
+      "subject_types": ["Record"],
+      "object_types": ["Document"],
+      "transitive": false
+    }
+  ]
+}

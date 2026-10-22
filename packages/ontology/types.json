@@ -1,0 +1,19 @@
+{
+  "types": [
+    { "id": "Document", "description": "관리 문서(매뉴얼·절차·지침·양식)" },
+    { "id": "DocumentVersion", "description": "문서 개정본" },
+    { "id": "Section", "description": "문서 절" },
+    { "id": "RecordTemplate", "description": "기록 양식" },
+    { "id": "Record", "description": "작성된 운영 기록" },
+    { "id": "Requirement", "description": "규격·매뉴얼 요구사항" },
+    { "id": "Process", "description": "업무 프로세스" },
+    { "id": "Activity", "description": "실행 활동" },
+    { "id": "Person", "description": "구성원" },
+    { "id": "Role", "description": "기능상 역할" },
+    { "id": "Permission", "description": "시스템 액션 권한" },
+    { "id": "AISystem", "description": "AI 시스템" },
+    { "id": "Risk", "description": "식별된 리스크" },
+    { "id": "Control", "description": "통제" },
+    { "id": "Assessment", "description": "평가·심사" }
+  ]
+}

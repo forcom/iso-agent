@@ -1,0 +1,28 @@
+% ISO-agent Wirelog rules (MVP)
+% evidence candidate: requirement addressed by procedure that requires a template,
+% and a record is an instance of that template.
+edge(X,P,Y) :- fact(X,P,Y).
+
+direct(X,P,Y) :- edge(X,P,Y).
+reach(X,P,Y) :- edge(X,P,Y).
+reach(X,P,Z) :- edge(X,P,Y), reach(Y,P,Z).
+
+% Cross-predicate evidence candidate (not "satisfied")
+evidence_candidate(R, Req) :-
+  addresses(Doc, Req),
+  requires_record(Doc, T),
+  instance_of(Rec, T),
+  Rec = R,
+  Req = Req.
+
+evidence_candidate(R, Req) :-
+  evidence_for(R, Req).
+
+% Impact set via depends_on reachability
+impact_item(X, Y) :- depends_on(X, Y).
+impact_item(X, Z) :- depends_on(X, Y), impact_item(Y, Z).
+
+% Permission via role
+has_permission(Person, Perm) :-
+  holds_role(Person, Role),
+  grants(Role, Perm).

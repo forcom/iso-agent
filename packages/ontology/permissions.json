@@ -1,0 +1,58 @@
+{
+  "permissions": [
+    { "id": "doc.read", "description": "문서 조회" },
+    { "id": "record.read", "description": "기록 조회" },
+    { "id": "record.write", "description": "기록 메타 갱신" },
+    { "id": "record.scan", "description": "records 스캔·자동 fact화" },
+    { "id": "fact.approve", "description": "시드 fact 승인·반려" },
+    { "id": "seed.import", "description": "시드 import" },
+    { "id": "query.ask", "description": "온톨로지 Q&A" },
+    { "id": "impact.draft", "description": "영향평가 초안 생성" },
+    { "id": "wiki.read", "description": "위키 조회" },
+    { "id": "wiki.write", "description": "위키 초안 작성" }
+  ],
+  "role_grants": {
+    "role:ceo": [
+      "doc.read",
+      "record.read",
+      "query.ask",
+      "impact.draft",
+      "wiki.read",
+      "fact.approve",
+      "seed.import"
+    ],
+    "role:cto": [
+      "doc.read",
+      "record.read",
+      "record.write",
+      "record.scan",
+      "fact.approve",
+      "seed.import",
+      "query.ask",
+      "impact.draft",
+      "wiki.read",
+      "wiki.write"
+    ],
+    "role:ai-safety": [
+      "doc.read",
+      "record.read",
+      "record.write",
+      "record.scan",
+      "fact.approve",
+      "query.ask",
+      "impact.draft",
+      "wiki.read",
+      "wiki.write"
+    ],
+    "role:admin-ops": [
+      "doc.read",
+      "record.read",
+      "record.write",
+      "record.scan",
+      "seed.import",
+      "query.ask",
+      "wiki.read"
+    ],
+    "role:staff": ["doc.read", "record.read", "query.ask", "wiki.read"]
+  }
+}

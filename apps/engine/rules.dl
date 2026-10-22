@@ -1,0 +1,6 @@
+edge(X,P,Y) :- fact(X,P,Y).
+direct(X,P,Y) :- edge(X,P,Y).
+reach(X,P,Y) :- edge(X,P,Y).
+reach(X,P,Z) :- edge(X,P,Y), reach(Y,P,Z).
+impact_item(X,Y) :- depends_on(X,Y).
+impact_item(X,Z) :- depends_on(X,Y), impact_item(Y,Z).

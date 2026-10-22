@@ -1,0 +1,21 @@
+{
+  "name": "iso-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ISO management system LLM Wiki ontology agent (MPL-2.0)",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @iso-agent/worker dev",
+    "deploy": "pnpm --filter @iso-agent/worker deploy",
+    "seed:import": "node scripts/seed-import.mjs",
+    "corpus:scan": "node scripts/scan-corpus.mjs",
+    "db:migrate:local": "pnpm --filter @iso-agent/worker exec wrangler d1 migrations apply iso-agent --local",
+    "typecheck": "pnpm -r typecheck",
+    "test:ontology": "pnpm --filter @iso-agent/worker exec tsx src/lib/ontology.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

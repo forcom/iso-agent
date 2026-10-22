@@ -2,7 +2,7 @@
 information_type: form
 information_id: "AIDU-AIP-06-02-F02"
 information_title: "영향평가서"
-template_version: "2.1"
+template_version: "2.0"
 related_procedure: "AIDU-AIP-06-02"
 ---
 

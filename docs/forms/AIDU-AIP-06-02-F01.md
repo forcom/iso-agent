@@ -2,7 +2,7 @@
 information_type: form
 information_id: "AIDU-AIP-06-02-F01"
 information_title: "영향평가 계획·범위서"
-template_version: "2.1"
+template_version: "2.0"
 related_procedure: "AIDU-AIP-06-02"
 ---
 
@@ -31,7 +31,7 @@ related_procedure: "AIDU-AIP-06-02"
 
 ## 2 평가 개시와 제품·서비스 정의
 
-제품·서비스 정의의 일곱 항목은 가이드라인 14·26쪽에 대응한다. 기존 시스템 명세의 유효한 내용은 위치·버전으로 연결할 수 있다.
+평가대상 제품·서비스의 7개 기본 정의 항목을 기입하며, 기존 시스템 명세(AIDU-AIP-08-01-F01)의 유효한 내용은 해당 위치·버전으로 연결할 수 있다.
 
 | 항목 | 기입 내용·근거 또는 연결 기록 |
 | --- | --- |

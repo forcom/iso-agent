@@ -21,7 +21,11 @@
       "edit_summary": "홈 고정 탭의 닫기 표시 제거, DEMO-W-001 기한 2026.10.24, DEMO-W-002 기한 2026.10.28, 최근 문서의 연도를 2026년으로 조정.",
       "width": 1586,
       "height": 992,
-      "sha256": "245f09a2fc40e19b39567741eb1b1005b803fe7f746d834bc73613044adc8b2b"
+      "sha256": "245f09a2fc40e19b39567741eb1b1005b803fe7f746d834bc73613044adc8b2b",
+      "mvp_applicability": {
+        "classification": "내용 재구성",
+        "note": "4절의 Q&A·업무 도구·지식 검토 홈으로 변경"
+      }
     },
     {
       "id": "WORK-01",
@@ -44,7 +48,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "430858ab8f1d9ba74d5664cc3bdd223ab6907d09f5350b3a4ea86b82b6847b43"
+      "sha256": "430858ab8f1d9ba74d5664cc3bdd223ab6907d09f5350b3a4ea86b82b6847b43",
+      "mvp_applicability": {
+        "classification": "후속 전용",
+        "note": "실제 업무 목록·개인 배정은 MVP 제외"
+      }
     },
     {
       "id": "WORK-02",
@@ -67,7 +75,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "ee044d89436a50acebddca397c727ed974d8241c8af5b6433fb33a885f45edce"
+      "sha256": "ee044d89436a50acebddca397c727ed974d8241c8af5b6433fb33a885f45edce",
+      "mvp_applicability": {
+        "classification": "후속 전용",
+        "note": "업무 건 개시·담당 지정은 MVP 제외"
+      }
     },
     {
       "id": "WORK-03",
@@ -84,7 +96,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-1b210add-e247-4815-ab25-c9d8f8ddb303.png",
       "width": 1586,
       "height": 992,
-      "sha256": "34f6c51c765ff5fd311f5abf1071f109185f147dfca67ccf1bf775391b924136"
+      "sha256": "34f6c51c765ff5fd311f5abf1071f109185f147dfca67ccf1bf775391b924136",
+      "mvp_applicability": {
+        "classification": "후속 전용",
+        "note": "수행 상세·제출본·검토 요청은 MVP 제외"
+      }
     },
     {
       "id": "REVIEW-01",
@@ -101,7 +117,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-e9ee775a-aed9-40ec-bcff-b5960d366f81.png",
       "width": 1586,
       "height": 992,
-      "sha256": "1a4290316b1db91ab2db321d1f1030b6088e7dd332cfcb93761e7841fd95aded"
+      "sha256": "1a4290316b1db91ab2db321d1f1030b6088e7dd332cfcb93761e7841fd95aded",
+      "mvp_applicability": {
+        "classification": "내용 재구성",
+        "note": "6.1의 규범 지식 검토 목록만 제공"
+      }
     },
     {
       "id": "REVIEW-02",
@@ -124,7 +144,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "036562e6f4645bd850ee6f77bd6195547f1bb58223d767abf674c786134eec5a"
+      "sha256": "036562e6f4645bd850ee6f77bd6195547f1bb58223d767abf674c786134eec5a",
+      "mvp_applicability": {
+        "classification": "후속 전용",
+        "note": "실제 업무 제출본 결재는 MVP 제외"
+      }
     },
     {
       "id": "REVIEW-03",
@@ -147,7 +171,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "54e9bd2026f87971d082cc12e93bc82105a48dcf7a720f9d95c44d709b2da5b6"
+      "sha256": "54e9bd2026f87971d082cc12e93bc82105a48dcf7a720f9d95c44d709b2da5b6",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "6.4~6.6의 지식 연결 검토 적용"
+      }
     },
     {
       "id": "DOC-01",
@@ -164,7 +192,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-4f49269e-8270-407f-8482-a46f773e518b.png",
       "width": 1586,
       "height": 992,
-      "sha256": "d3886c56ce426bef96a1ac6ffb1b0de8683dda75a3d45ab75b5d6df105379aa2"
+      "sha256": "d3886c56ce426bef96a1ac6ffb1b0de8683dda75a3d45ab75b5d6df105379aa2",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "MVP 문서·양식 조회, 공통 메뉴는 3절 적용"
+      }
     },
     {
       "id": "DOC-02",
@@ -187,7 +219,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "e0e4f9908d31e11566baa919d829db32faf256088fba3a2e91b935c68f160349"
+      "sha256": "e0e4f9908d31e11566baa919d829db32faf256088fba3a2e91b935c68f160349",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "원문·관계·출처 조회, 실제 업무 건 링크 제외"
+      }
     },
     {
       "id": "RECORD-01",
@@ -214,7 +250,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "f8feb81a36a7e0eac788547d63df5d2027fe179b3f34fa7c6c492108378fbcda"
+      "sha256": "f8feb81a36a7e0eac788547d63df5d2027fe179b3f34fa7c6c492108378fbcda",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "관련 절차·양식·대상·자동 반영 상태로 구성"
+      }
     },
     {
       "id": "RECORD-02",
@@ -237,7 +277,11 @@
       ],
       "width": 1585,
       "height": 992,
-      "sha256": "e7feb55568ef96f84b71e9610d3a7c6289a11a408e004f332e1afae4b8017234"
+      "sha256": "e7feb55568ef96f84b71e9610d3a7c6289a11a408e004f332e1afae4b8017234",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "원 기록·관계 근거·검토 상태, 업무 상세 진입 제외"
+      }
     },
     {
       "id": "TRACE-01",
@@ -254,7 +298,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-1dc3f069-2f6c-4efd-854b-359587fceff1.png",
       "width": 1586,
       "height": 992,
-      "sha256": "3f93d046735eeacc7a5e5a0a9a7e049bd362d274e10c60d266f6c86d9d1c2d5b"
+      "sha256": "3f93d046735eeacc7a5e5a0a9a7e049bd362d274e10c60d266f6c86d9d1c2d5b",
+      "mvp_applicability": {
+        "classification": "상세 확장",
+        "note": "8.1의 분기 그래프·관계별 인용·독립 Q&A 적용"
+      }
     },
     {
       "id": "IMPACT-01",
@@ -271,7 +319,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-83013a61-36a0-4146-ae82-82e9dcec4941.png",
       "width": 1586,
       "height": 992,
-      "sha256": "63760261361bb4ff6397bd699b09301799a86c4ae39ec7b5ce201486be99f407"
+      "sha256": "63760261361bb4ff6397bd699b09301799a86c4ae39ec7b5ce201486be99f407",
+      "mvp_applicability": {
+        "classification": "내용 재구성",
+        "note": "8.2의 영향 집합·초안 분리, 업무 연결 제외"
+      }
     },
     {
       "id": "WIKI-01",
@@ -288,7 +340,11 @@
       "selected_generated_path": "/Users/y/Library/Application Support/orca/codex-accounts/39f4458a-8b21-4994-a946-2ea731aa1f12/home/generated_images/01a163ee-bd09-78e2-a43a-3dcdb155e095/exec-327bb968-38fc-48b6-aaf9-a29ba01c5e10.png",
       "width": 1586,
       "height": 992,
-      "sha256": "c089fcae7bcd01d67dcbcf5c9906869f88cdf48a492d5bd059b9bcff87fd1c37"
+      "sha256": "c089fcae7bcd01d67dcbcf5c9906869f88cdf48a492d5bd059b9bcff87fd1c37",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "승인 위키 기본 조회와 공개 범위 구분"
+      }
     },
     {
       "id": "WIKI-02",
@@ -311,7 +367,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "04fda597c6508717709beb6113012d957f31cb6420e446444969eee5d7f26a1d"
+      "sha256": "04fda597c6508717709beb6113012d957f31cb6420e446444969eee5d7f26a1d",
+      "mvp_applicability": {
+        "classification": "배치 재사용",
+        "note": "설명·인용·원문 조회, 업무 링크·새 승인 요청 제외"
+      }
     },
     {
       "id": "SEARCH-01",
@@ -334,7 +394,11 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "aaf246b077c6c8086d3f30be4fe217e15f7c0137a28410adb117be98d87719df"
+      "sha256": "aaf246b077c6c8086d3f30be4fe217e15f7c0137a28410adb117be98d87719df",
+      "mvp_applicability": {
+        "classification": "범위 조정",
+        "note": "문서·기록·위키·요구사항 검색, 업무 건 제외"
+      }
     },
     {
       "id": "ADMIN-01",
@@ -357,10 +421,17 @@
       ],
       "width": 1586,
       "height": 992,
-      "sha256": "7694552684fa66d4f7a9b976d019c7138cead4eabe1a9a7b0f2d5467fafb17a9"
+      "sha256": "7694552684fa66d4f7a9b976d019c7138cead4eabe1a9a7b0f2d5467fafb17a9",
+      "mvp_applicability": {
+        "classification": "내용 재구성",
+        "note": "8.5의 시드 가져오기·스캔·스냅샷으로 구성"
+      }
     }
   ],
   "screen_count": 17,
   "review_notice": "대표 데스크톱 화면의 시안이며 사용자 승인 또는 기능 구현 완료를 의미하지 않습니다. 같은 예시 업무도 화면별로 서로 다른 수행 단계를 나타냅니다.",
-  "originals_notice": "생성 원본과 수정 이력은 각 generated_path에 보존합니다. 이 폴더에는 선택된 최종 시안만 보관합니다."
+  "originals_notice": "생성 원본과 수정 이력은 각 generated_path에 보존합니다. 이 폴더에는 선택된 최종 시안만 보관합니다.",
+  "source_design_version": "0.2",
+  "current_design_version": "0.3",
+  "applicability_notice": "이 이미지는 v0.2 확장형 ERP 참고 시안입니다. v0.3 MVP의 최신 배치는 UI 설계서 4절·8절의 와이어프레임과 14절의 적용 범위를 따릅니다."
 }

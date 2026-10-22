@@ -7,18 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @iso-agent/worker dev",
-    "dev:wirelog": "pnpm --filter @iso-agent/worker exec wrangler dev --var ENGINE_URL:http://127.0.0.1:8081",
-    "engine:dev": "uv run --with fastapi --with uvicorn --with pyrewire==1.1.2 uvicorn server:app --app-dir apps/engine --host 127.0.0.1 --port 8081",
-    "deploy": "pnpm --filter @iso-agent/worker deploy",
-    "seed:import": "node scripts/seed-import.mjs",
-    "wiki:ingest": "node scripts/ingest-wiki.mjs",
-    "wiki:check": "node scripts/ingest-wiki.mjs --check",
-    "test:wiki": "node --test scripts/ingest-wiki.test.mjs && pnpm --filter @iso-agent/worker exec tsx ../../scripts/wiki.test.ts",
-    "test:wirelog": "python3 -m unittest discover -s apps/engine -p 'test_*.py'",
-    "corpus:scan": "node scripts/scan-corpus.mjs",
-    "db:migrate:local": "pnpm --filter @iso-agent/worker exec wrangler d1 migrations apply iso-agent --local",
-    "typecheck": "pnpm -r typecheck",
-    "test:ontology": "pnpm --filter @iso-agent/worker exec tsx src/lib/ontology.test.ts"
+    "typecheck": "pnpm -r typecheck"
   },
   "engines": {
     "node": ">=20"

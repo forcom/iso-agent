@@ -3,32 +3,5 @@ main = "src/index.ts"
 compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
 
-[assets]
-directory = "./public"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "iso-agent"
-database_id = "local-iso-agent"
-migrations_dir = "migrations"
-
-# Optional R2 for large archives (create bucket before production deploy)
-# [[r2_buckets]]
-# binding = "BUCKET"
-# bucket_name = "iso-agent"
-
 [vars]
 APP_NAME = "iso-agent"
-LLM_MODEL = "gpt-4.1-mini"
-ENGINE_URL = ""
-
-# Custom domain (configure in Cloudflare dashboard):
-# routes = [{ pattern = "iso-agent.superhot.company/*", zone_name = "superhot.company" }]
-
-# Containers (enable when image is pushed):
-# [[containers]]
-# class_name = "WirelogEngine"
-# image = "./../../apps/engine/Dockerfile"
-# max_instances = 2

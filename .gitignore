@@ -23,3 +23,11 @@ dist/
 # Python engine
 __pycache__/
 *.py[cod]
+
+# 개발 산출물·로컬 상태 (확정 설계·계획은 GitHub Issue에서 관리)
+/output/superpowers/
+/output/erp-ui-concepts/
+/output/runtime/
+/output/test/
+/output/build/
+/output/scripts/

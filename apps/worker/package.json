@@ -5,8 +5,7 @@
   "license": "MPL-2.0",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "mkdir -p ../../output/runtime/worker && WRANGLER_LOG_PATH=../../output/runtime/logs WRANGLER_CACHE_DIR=../../output/runtime/cache wrangler dev --persist-to ../../output/runtime/worker/state",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

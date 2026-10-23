@@ -22,6 +22,7 @@ export interface Revision {
   auditedPersonIds?:string[];
   externalDesignation?:{confirmedBy:string;confirmedAt:string;approvalEvidenceId:string;sourceSha256:string};
   fictionalDesignation?:{authorizationReference:string;sourceSha256:string;configurationId:string};
+  research?:{proposalId:string;jobId:string;resultId:string;proposalSha256:string};
 }
 export interface Change {
   id:string; title:string; baseContext:KnowledgeContext; revisionIds:string[]; withdrawnArtifactIds:string[];

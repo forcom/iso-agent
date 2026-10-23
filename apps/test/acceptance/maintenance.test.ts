@@ -76,6 +76,21 @@ describe('maintenance boundaries and recoverable D1/R2 changes',()=>{
   const again=await maintenance.applyMaintenance(env,target,baseline,plan);expect(again.alreadyApplied).toBe(true);expect(await getKnowledgeContext(env)).toEqual({...before,dataRevision:before.dataRevision+1,authorityRevision:before.authorityRevision+1});
   await test.select('reader');expect((await maintenance.applyMaintenance(env,target,baseline,plan)).alreadyApplied).toBe(true);expect(await env.DB.prepare('SELECT COUNT(*) n FROM sessions').first('n')).toBe(1);
  });
+ it('plans when a kept revision cites an index source that has no revision row, and skips unchanged replacement rows',async()=>{
+  const env=await environment(),index=test.bundle.sources.find(source=>source.kind==='index')!,regulation=await get<any>(env,'revisions','test-reg-rev');
+  regulation.evidenceRefs=[{revisionId:index.revisionId,sourceSha256:index.sha256,lineStart:1,lineEnd:1,quote:index.markdown.split('\n')[0]}];
+  await env.DB.prepare('UPDATE revisions SET body=? WHERE id=?').bind(JSON.stringify(regulation),regulation.id).run();
+  const baseline=await maintenance.snapshotMaintenance(env,target);await business();
+  const plan=await maintenance.planMaintenance(env,target,baseline,'reset-business');
+  expect(plan.preserveObjects.map(object=>object.key)).toContain(`sources/${index.revisionId}/${index.sha256}.md`);
+  expect(plan.replaceRows.artifacts).toEqual([]);expect(plan.replaceRows.revisions).toEqual([]);
+  expect((await maintenance.applyMaintenance(env,target,baseline,plan)).pendingObjects).toEqual([]);
+ });
+ it('refuses maintenance while a regulation change opened after the baseline is still open',async()=>{
+  const env=await environment(),baseline=await maintenance.snapshotMaintenance(env,target);
+  await post('/api/admin/regulation-changes','admin',{title:'Synthetic open change'});
+  for(const operation of ['reset-business','restore-release'] as const)await expect(maintenance.planMaintenance(env,target,baseline,operation)).rejects.toThrow(/Open regulation changes/);
+ });
  it('refuses missing index provenance, a changed plan, a wrong target, and changes that do not bump context',async()=>{
   const env=await environment(),baseline=await maintenance.snapshotMaintenance(env,target);await business();const plan=await maintenance.planMaintenance(env,target,baseline,'reset-business');
   await expect(maintenance.applyMaintenance(env,{...target,databaseId:'different'},baseline,plan)).rejects.toThrow(/target/i);

@@ -31,8 +31,7 @@ export async function rebaseRegulationChange(env:Env,actor:ActorContext,changeId
  requireAdmin(actor);const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.rebase',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const {context,change,authorization}=await closeableChange(env,actor,changeId,input,'revise');
  requireValue(change.baseContext.releaseId!==context.releaseId,409,'CHANGE_CURRENT','이미 현재 시행 릴리스를 기준으로 합니다.');
- for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id);requireValue((await get<Artifact>(env,'artifacts',r.artifactId)).workingRevisionId===id,409,'REVISION_CONFLICT','다른 변경 건이 같은 규정의 작업본을 등록했습니다.')}
- for(const id of change.withdrawnArtifactIds)requireValue((await get<Artifact>(env,'artifacts',id)).effectiveRevisionId,409,'WITHDRAWAL_CONFLICT','철회 대상이 이미 시행 중이 아닙니다.');
+ // closeableChange(...,'revise') already requires each file to be the working revision and each withdrawal target to be effective.
  const next:Change={...change,baseContext:context,state:'draft',candidateReleaseId:undefined,candidateHash:undefined,validation:undefined,diff:undefined,knowledgeValidation:undefined};
  return commitMutation(env,actor,key,hash,context,{change:next},[update(env,'regulation_changes',changeId,next),event(env,null,{kind:'regulation_change_rebased',changeId,fromReleaseId:change.baseContext.releaseId,actorId:actor.personId,authorization,context})]);
 }

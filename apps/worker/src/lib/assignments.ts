@@ -5,7 +5,7 @@ import { all, assertContext,assertExpectedContext, commitMutation, event, get, g
 import { readRevision, resourceFor } from './artifacts';
 import { requireAuthorization } from './engine';
 import { ApiError, requireValue, textField } from './errors';
-import { appointmentSourceCandidates, candidateId, cells } from './appointment-source';
+import { appointmentSourceCandidates, candidateId, cells, fenceAfter } from './appointment-source';
 import { requestHash } from './requests';
 
 const requiredColumns = ['personId', 'roleId', 'validFrom', 'validUntil', 'scopeKind', 'scopeIds'];
@@ -18,23 +18,27 @@ function timestamp(value:string) {
 }
 
 
-async function appointmentCandidates(env:Env,revisionId:string,context:KnowledgeContext) {
- const revision=await get<Revision>(env,'revisions',revisionId),artifact=await get<Artifact>(env,'artifacts',revision.artifactId),bundle=await getBundle(env,context);
+type AppointmentData={bundle:Awaited<ReturnType<typeof getBundle>>;persons:Person[];artifacts:Artifact[];decisions:{id:string;revisionId:string;decision:string;sourceSha256:string}[]};
+/** Loaded once per request and shared by every appointment record it inspects. */
+async function appointmentData(env:Env,context:KnowledgeContext):Promise<AppointmentData> {
+ const [bundle,persons,artifacts,decisions]=await Promise.all([getBundle(env,context),all<Person>(env,'persons'),all<Artifact>(env,'artifacts'),all<AppointmentData['decisions'][number]>(env,'decisions')]);
+ return {bundle,persons,artifacts,decisions};
+}
+async function appointmentCandidates(env:Env,revisionId:string,{bundle,persons,artifacts,decisions}:AppointmentData) {
+ const revision=await get<Revision>(env,'revisions',revisionId),artifact=await get<Artifact>(env,'artifacts',revision.artifactId);
  requireValue(artifact.kind==='record'&&artifact.recordTypeIds.some(id=>bundle.recordTypes.some(type=>type.id===id&&type.roleAssignment===true)),422,'NOT_APPOINTMENT_RECORD','역할 지정 기록 유형으로 등록된 자료만 적용할 수 있습니다.');
  requireValue(revision.state==='approved'&&artifact.effectiveRevisionId===revision.id&&artifact.workingRevisionId===revision.id,409,'APPOINTMENT_NOT_CURRENT_APPROVED','현재 작업본과 시행본이 같은 승인된 지정 기록이 필요합니다.');
- const decision=(await all<{id:string;revisionId:string;decision:string;sourceSha256:string}>(env,'decisions')).find(item=>item.revisionId===revision.id&&item.decision==='approve'&&item.sourceSha256===revision.sourceSha256);
+ const decision=decisions.find(item=>item.revisionId===revision.id&&item.decision==='approve'&&item.sourceSha256===revision.sourceSha256);
  requireValue(decision,422,'APPOINTMENT_APPROVAL_MISSING','동일 원본 버전의 승인 결정 근거가 필요합니다.');
  const {markdown}=await readRevision(env,revision.id);
- const [persons,artifacts]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts')]);
  const sourceCandidates=await appointmentSourceCandidates(markdown,revision,persons);
  const machineAssignments=async()=>{
- const assignments:RoleAssignment[]=[];let header:string[]|undefined;let fence:string|undefined;
+ const assignments:RoleAssignment[]=[];let header:string[]|undefined;let fence='';
  const lines=markdown.split('\n');
  for(let index=0;index<lines.length;index++){
   const line=lines[index],trimmed=line.trim();
-  const delimiter=trimmed.match(/^(`{3,}|~{3,})/)?.[1];
-  if(delimiter){if(!fence)fence=delimiter;else if(delimiter[0]===fence[0]&&delimiter.length>=fence.length)fence=undefined;header=undefined;continue}
-  if(fence)continue;
+  const next=fenceAfter(line,fence);
+  if(fence||next){fence=next;header=undefined;continue}
   if(!trimmed.startsWith('|')){header=undefined;continue}
   const values=cells(line);
   if(values.includes('personId')&&values.includes('roleId')){
@@ -76,8 +80,7 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
  return {artifact,revision,assignments,assignmentsError,sourceCandidates,decision};
 }
 
-async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeContext,revision:Revision,decisionId:string,candidates:AppointmentSourceCandidate[],mappings:AssignmentMapping[],requestKey:string) {
- const [persons,artifacts,existing,bundle]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts'),all<RoleAssignment>(env,'assignments'),getBundle(env,context)]);
+async function mappedAssignments(actor:ActorContext,revision:Revision,decisionId:string,candidates:AppointmentSourceCandidate[],mappings:AssignmentMapping[],requestKey:string,{persons,artifacts,bundle}:AppointmentData,existing:RoleAssignment[]) {
  const result:RoleAssignment[]=[],seen=new Set<string>();
  const sameScope=(a:RoleAssignment['scope'],b:RoleAssignment['scope'])=>a.kind===b.kind&&canonical([...a.ids].sort())===canonical([...b.ids].sort());
  for(const mapping of mappings){
@@ -110,16 +113,15 @@ async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeCon
 
 export async function listRoleAssignments(env:Env,actor:ActorContext) {
  requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
- const context=await getKnowledgeContext(env),bundle=await getBundle(env,context);
- const [items,artifacts]=await Promise.all([all<RoleAssignment>(env,'assignments'),all<Artifact>(env,'artifacts')]);
+ const context=await getKnowledgeContext(env),[data,items]=await Promise.all([appointmentData(env,context),all<RoleAssignment>(env,'assignments')]),{bundle,artifacts}=data;
  const candidates:Array<{artifactId:string;revisionId:string;assignments:RoleAssignment[];sourceCandidates?:AppointmentSourceCandidate[];error?:string}>=[];
  for(const artifact of artifacts.filter(a=>a.kind==='record'&&a.recordTypeIds.some(id=>bundle.recordTypes.some(type=>type.id===id&&type.roleAssignment===true)))){
   const revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);
   if(revision.state!=='approved')continue;
-  try{const candidate=await appointmentCandidates(env,revision.id,context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates,...(candidate.assignmentsError?{error:candidate.assignmentsError.message}:{})})}
+  try{const candidate=await appointmentCandidates(env,revision.id,data);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates,...(candidate.assignmentsError?{error:candidate.assignmentsError.message}:{})})}
   catch(error){if(!(error instanceof ApiError))throw error;candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:[],error:error.message})}
  }
- assertContext(context,await getKnowledgeContext(env));return {items,candidates,context,persons:await all<Person>(env,'persons'),roles:bundle.roles,systems:bundle.entities.filter(entity=>entity.type==='AISystem'),resources:artifacts.map(({id,title})=>({id,title}))};
+ assertContext(context,await getKnowledgeContext(env));return {items,candidates,context,persons:data.persons,roles:bundle.roles,systems:bundle.entities.filter(entity=>entity.type==='AISystem'),resources:artifacts.map(({id,title})=>({id,title}))};
 }
 
 export async function applyRoleAssignment(env:Env,actor:ActorContext,input:AssignmentApplyInput):Promise<AssignmentResult> {
@@ -127,12 +129,13 @@ export async function applyRoleAssignment(env:Env,actor:ActorContext,input:Assig
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('assignment.apply',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  requireValue((Array.isArray(input.assignments)&&input.assignments.length>0&&input.mappedAssignments===undefined)||(Array.isArray(input.mappedAssignments)&&input.mappedAssignments.length>0&&input.assignments===undefined),422,'ASSIGNMENTS_REQUIRED','기계용 후보 또는 한글 대조값 중 하나를 선택해 주세요.');
- const {artifact,revision,assignments,assignmentsError,sourceCandidates,decision}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
+ const [data,existing]=await Promise.all([appointmentData(env,context),all<RoleAssignment>(env,'assignments')]);
+ const {artifact,revision,assignments,assignmentsError,sourceCandidates,decision}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),data);
  if(!input.mappedAssignments&&assignmentsError)throw assignmentsError;
- const selected=input.mappedAssignments?await mappedAssignments(env,actor,context,revision,decision.id,sourceCandidates,input.mappedAssignments,key):input.assignments!;
+ const selected=input.mappedAssignments?await mappedAssignments(actor,revision,decision.id,sourceCandidates,input.mappedAssignments,key,data,existing):input.assignments!;
  if(!input.mappedAssignments)requireValue(new Set(input.assignments!.map(item=>item.id)).size===input.assignments!.length&&input.assignments!.every(item=>assignments.some(candidate=>canonical(candidate)===canonical(item))),422,'ASSIGNMENT_CANDIDATE_MISMATCH','적용 값이 승인된 원문의 지정 후보와 일치하지 않습니다.');
  const authorization=await requireAuthorization(env,actor,'apply_assignment',resourceFor(artifact,revision),context);
- const existing=await all<RoleAssignment>(env,'assignments');requireValue(selected.every(item=>!existing.some(old=>old.id===item.id)),409,'ASSIGNMENT_ALREADY_APPLIED','이미 적용한 지정입니다.');
+ requireValue(selected.every(item=>!existing.some(old=>old.id===item.id)),409,'ASSIGNMENT_ALREADY_APPLIED','이미 적용한 지정입니다.');
  const replaced=selected.filter(item=>item.replacesAssignmentId).map(item=>item.replacesAssignmentId!);requireValue(new Set(replaced).size===replaced.length,422,'DUPLICATE_REPLACEMENT','같은 기존 지정을 두 번 변경할 수 없습니다.');
  const statements:D1PreparedStatement[]=[];
  for(const item of selected){

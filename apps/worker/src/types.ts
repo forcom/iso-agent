@@ -25,6 +25,9 @@ export interface Revision {
 export interface Change {
   id:string; title:string; baseContext:KnowledgeContext; revisionIds:string[]; withdrawnArtifactIds:string[];
   state:'draft'|'built'|'validated'|'approved'|'published'|'cancelled'; createdBy:string; createdAt:string;
-  candidateReleaseId?:string; candidateHash?:string; validation?:unknown; diff?:unknown;
+  candidateReleaseId?:string; candidateHash?:string; validation?:unknown;
+  /** Over 1 MiB this is stored as a `JsonPayloadReference` (R2 pointer). Only GET /admin/regulation-changes/:id resolves it;
+   * mutation results return the stored form and the change list omits it. */
+  diff?:unknown;
   knowledgeValidation?:{personId:string;hash:string;at:string};
 }

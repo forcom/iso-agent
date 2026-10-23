@@ -30,10 +30,11 @@ try{
    const plan=await planMaintenance(platform.env,platform.target,baseline,values.operation as MaintenancePlan['operation']);const planPath=await writeMaintenanceJson(root,resolve(directory,`${plan.operation}-plan.json`),plan);console.log(JSON.stringify({planPath,hash:plan.hash,operation:plan.operation,deleteRows:Object.fromEntries(Object.entries(plan.deleteRows).map(([name,ids])=>[name,ids.length])),deleteObjects:plan.deleteObjects.length},null,2));
   }else if(command==='apply'){
    const plan=await readMaintenanceJson<MaintenancePlan>(root,values['plan-file']!);if(plan.hash!==values['expected-hash'])throw new Error('Expected plan hash mismatch');
+   let backup:MaintenanceSnapshot|undefined;
    if(!await platform.env.DB.prepare('SELECT id FROM events WHERE id=?').bind(`maintenance:${plan.hash}`).first()){
-    const backup=await snapshotMaintenance(platform.env,platform.target);if(backup.stateHash!==plan.beforeHash)throw new Error('Stale plan: state changed before backup');await saveBackup(backup,`before-${plan.hash}`);
+    backup=await snapshotMaintenance(platform.env,platform.target);if(backup.stateHash!==plan.beforeHash)throw new Error('Stale plan: state changed before backup');await saveBackup(backup,`before-${plan.hash}`);
    }
-   const result=await applyMaintenance(platform.env,platform.target,baseline,plan);await writeMaintenanceJson(root,resolve(directory,`${plan.operation}-result.json`),result);console.log(JSON.stringify(result,null,2));if(result.pendingObjects.length)process.exitCode=2;
+   const result=await applyMaintenance(platform.env,platform.target,baseline,plan,backup);await writeMaintenanceJson(root,resolve(directory,`${plan.operation}-result.json`),result);console.log(JSON.stringify(result,null,2));if(result.pendingObjects.length)process.exitCode=2;
   }else{const result=await restoreMaintenanceBackup(platform.env,platform.target,baseline,values['expected-hash']!);await writeMaintenanceJson(root,resolve(directory,'restore-backup-result.json'),result);console.log(JSON.stringify(result,null,2))}
  }
 }finally{await platform.dispose()}

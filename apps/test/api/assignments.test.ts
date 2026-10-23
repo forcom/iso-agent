@@ -183,6 +183,13 @@ describe('Korean appointment reconciliation',()=>{
   env=await appointment(undefined,[],original.replace('전사 합성 기록의 검토·승인','전사 합성 기록의 검토\\|승인'));
   const candidate=((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates[0];
   expect(candidate.blockedReason).toBeUndefined();expect(candidate.scopeText).toBe('전사 합성 기록의 검토|승인');
+  env=await appointment(undefined,[],original.replace('| 역할·담당 업무 | 검토와 승인 운영 |','| 역할·담당 업무 | 검토와 승인 운영 | 비고 |'));
+  expect(((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates[0].blockedReason).toMatch(/두 열/);
+ });
+ it('keeps a sample section inside a code fence hidden even when an inner line carries an info string',async()=>{
+  const sample='```\n```markdown\n### R-09 예시\n\n| 항목 | 기입 내용 |\n| --- | --- |\n| 역할·담당 업무 | 예시 |\n| 담당자·부서 | 시험 reader |\n| 위임·승인·접근 범위 | 예시 범위 |\n| 지정·해제일 | 2026. 4. 27. 지정 / 해제일 없음 |\n```\n';
+  const env=await appointment(undefined,[],`${await loadFixture('korean-appointment.md')}\n${sample}`);
+  expect(((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates.some((c:any)=>c.sectionId==='R-09')).toBe(false);
  });
  it('keeps Korean candidates usable when the same record has an invalid machine table',async()=>{
   const source=`${await loadFixture('korean-appointment.md')}\n\n| personId | roleId | validFrom | validUntil | scopeKind | scopeIds |\n| --- | --- | --- | --- | --- | --- |\n| missing | approver | 2026-01-01T00:00:00Z | 2027-01-01T00:00:00Z | all | |\n`;

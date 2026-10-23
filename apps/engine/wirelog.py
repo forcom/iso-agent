@@ -259,6 +259,8 @@ def authorize(request):
                         insert('person_conflict', separation, person)
         for assignment in assignments.values():
             id = assignment['id']
+            # Delegation is out of scope, so no `delegated` fact is emitted and its rules.dl rule stays inert.
+            # Remove that rule with the next rules change: editing rules.dl changes RULES_HASH and needs a knowledge reinstall.
             if assignment.get('delegatedFromAssignmentId'):
                 reasons.append({'id': id, 'reason': 'DELEGATION_NOT_SUPPORTED'})
                 continue

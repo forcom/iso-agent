@@ -80,7 +80,7 @@ export interface RecordUpload { file: Uint8Array; filename: string; documentCode
 export interface RevisionUpload extends Omit<RecordUpload, "recordTypeIds"> { artifactId: ArtifactId; expectedRevisionId: RevisionId }
 export interface RecordRevisionResult { artifactId: ArtifactId; revisionId: RevisionId; status: RevisionStatus; context: KnowledgeContext }
 export interface RevisionContent { artifactId: ArtifactId; revisionId: RevisionId; sha256: string; markdown: string; status: RevisionStatus }
-export interface DecisionInput { artifactId: ArtifactId; revisionId: RevisionId; decision: "submit" | "review" | "approve" | "reject"; comment: string; requestKey: string; expectedContext: KnowledgeContext }
+export interface DecisionInput { artifactId: ArtifactId; revisionId: RevisionId; decision: "submit" | "review" | "approve" | "reject"; comment: string; requestKey: string; expectedContext: KnowledgeContext; expectedRevisionVersion: string }
 export interface DecisionResult { decisionId: string; revisionId: RevisionId; status: RevisionStatus; context: KnowledgeContext }
 export interface CirculationInput { artifactId: ArtifactId; revisionId: RevisionId; recipientIds: PersonId[]; purpose: string; requestKey: string; expectedContext: KnowledgeContext }
 export interface CirculationResult { circulationId: string; revisionId: RevisionId; recipientIds: PersonId[]; context: KnowledgeContext }
@@ -99,5 +99,5 @@ export interface ImpactInput { targetId: string; context: KnowledgeContext; acto
 export interface ImpactResult { computed: GraphResult; draft: string | null; draftError?: string; disclaimer: string }
 export interface DeploymentDesignationSource { artifactId: ArtifactId; revisionId: RevisionId; documentCode: string; title: string; markdown: string; sha256: string; confirmedBy: PersonId; confirmedAt: string; approvalEvidenceId: string }
 export interface DeploymentPreparation { environment: string; operatorDesignation: { personId: PersonId; evidenceId: string; designatedAt: string } | null; persons: Array<Person & { evidenceId: string }>; assignments: RoleAssignment[]; designationSources?: DeploymentDesignationSource[] }
-export interface InstallTarget { environment: 'local'|'demo'|`iso-test-${string}`; preparation?: DeploymentPreparation; ruleBytes?: Uint8Array; schemaBytes?: Uint8Array }
+export interface InstallTarget { environment: 'local'|'demo'|`iso-test-${string}`; preparation?: DeploymentPreparation; ruleBytes?: Uint8Array; schemaBytes?: Uint8Array; sourceBytes?: Record<RevisionId, Uint8Array> }
 export interface InstallReport { releaseId: ReleaseId; installed: boolean; unassignedRoleIds: RoleId[]; warnings: string[] }

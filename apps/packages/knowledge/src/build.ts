@@ -26,20 +26,21 @@ export async function buildRelease(input: BuildInput): Promise<KnowledgeBundle> 
     const hash = await sha256(source.bytes);
     if (source.sha256 && source.sha256 !== hash) throw new Error(`source_hash: ${source.code}`);
     let markdown: string;
-    try { markdown = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source.bytes); } catch { throw new Error(`source_utf8: ${source.code}`); }
+    try { markdown = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(source.bytes).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n"); } catch { throw new Error(`source_utf8: ${source.code}`); }
     const declaredCode = markdown.match(/^information_id:\s*["']?([^\n"']+)["']?\s*$/m)?.[1]?.trim();
     if (declaredCode && declaredCode !== source.code) throw new Error(`source_identity: ${source.code}`);
     const declaredKind = markdown.match(/^information_type:\s*["']?([^\n"']+)["']?\s*$/m)?.[1]?.trim();
     const declaredSourceKind = declaredKind === "guideline" ? "guide" : declaredKind === "form" ? "template" : declaredKind;
     if (source.kind !== "index" && declaredSourceKind && declaredSourceKind !== source.kind) throw new Error(`source_kind: ${source.code}`);
     const { bytes: _bytes, ...meta } = source;
-    sources.push({ ...meta, sha256: hash, textSha256: await sha256(markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n")), markdown });
+    sources.push({ ...meta, sha256: hash, textSha256: await sha256(markdown), markdown });
   }
   sources.sort((a, b) => a.code.localeCompare(b.code, "en"));
   const mappings = structuredClone(input.mappings);
   const sourcesHash = await sha256(canonical(sources.map(({ markdown: _markdown, ...source }) => source)));
   const mappingsHash = await sha256(canonical(mappings)); const rulesHash = await sha256(input.rules); const schemaHash = await sha256(input.schema);
-  const releaseId = await derivedId(canonical({ sourcesHash, mappingsHash, rulesHash, schemaHash, schemaVersion: input.schemaVersion }));
+  // Candidate builds rewrite review states, so they get their own ID; installed release IDs stay unchanged.
+  const releaseId = await derivedId(canonical({ sourcesHash, mappingsHash, rulesHash, schemaHash, schemaVersion: input.schemaVersion, ...(input.candidate ? { candidate: true } : {}) }));
   const entities: Entity[] = []; const relations: Relation[] = [];
   const relation = async (subjectId: string, type: Relation["type"], objectId: string, evidenceRefs: EvidenceRef[], origin: Relation["origin"] = "regulation", condition?: string, conditionStatus?: Relation["conditionStatus"]) => relations.push({ id: await derivedId(`${releaseId}:${subjectId}:${type}:${objectId}`), subjectId, type, objectId, evidenceRefs, origin, releaseId, reviewStatus: "validated", evidenceStatus: "verified", ...(condition ? { condition, conditionStatus } : {}) });
   const wiki: KnowledgeBundle["wiki"] = [];
@@ -113,7 +114,8 @@ export async function verifyBundle(bundle: KnowledgeBundle): Promise<ValidationR
   const result = checkBundle(bundle);
   const copy = structuredClone(bundle); copy.manifest.manifestHash = "";
   if (await sha256(canonical(copy)) !== bundle.manifest.manifestHash) result.errors.push({ code: "bundle_hash", path: "manifest", message: "Bundle contents changed after compilation" });
-  for (const source of bundle.sources) if (await sha256(source.markdown) !== source.sha256) result.errors.push({ code: "source_hash", path: source.code, message: "Source bytes do not match stored digest" });
+  // Bundles carry the normalized text (LF, no BOM) that quotes use; the raw byte digest stays in sha256.
+  for (const source of bundle.sources) if (await sha256(source.markdown) !== source.textSha256) result.errors.push({ code: "source_hash", path: source.code, message: "Source text does not match stored digest" });
   if (await sha256(canonical(bundle.mappings)) !== bundle.manifest.mappingsHash) result.errors.push({ code: "mappings_hash", path: "mappings", message: "Mapping content changed" });
   result.valid = result.errors.length === 0;
   return result;

@@ -22,6 +22,37 @@ async function emptyEnvironment() {
 }
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); });
 describe("knowledge installation", () => {
+  it("stores index and regulation originals without losing BOM or CRLF bytes", async () => {
+    const input = await corpus(), oldHash = input.sources[0].sha256!;
+    const rawProcedure = "\uFEFF# 1 Example procedure\r\nThe coordinator writes the register.\r\nThe reviewer reviews the exact version.\r\n";
+    input.sources[0].bytes = new TextEncoder().encode(rawProcedure);
+    input.sources[0].sha256 = await sha256(rawProcedure);
+    input.mappings = JSON.parse(JSON.stringify(input.mappings).replaceAll(oldHash, input.sources[0].sha256));
+    const rawIndex = "\uFEFF# Contents\r\nNavigation only.\r\n", indexHash = await sha256(rawIndex);
+    input.sources.push({ artifactId: "index", revisionId: "index-revision", code: "INDEX", title: "Contents", path: "synthetic/index.md", kind: "index", bytes: new TextEncoder().encode(rawIndex), sha256: indexHash });
+    input.mappings.sources.push({ sourceCode: "INDEX", revisionId: "index-revision", sourceSha256: indexHash, reviewStatus: "validated", reviewedBy: "synthetic reviewer", reviewedAt: "2026-01-01", clauses: [] });
+    const bundle = await buildRelease(input), env = await emptyEnvironment();
+    await installRelease(env, bundle, { environment: "iso-test-install", ruleBytes: input.rules, schemaBytes: input.schema, sourceBytes: Object.fromEntries(input.sources.map(source => [source.revisionId, source.bytes])) });
+    const procedure = bundle.sources.find(source => source.revisionId === "example-revision")!;
+    expect(await (await env.SOURCES.get(`sources/example-revision/${procedure.sha256}.md`))!.text()).toBe(rawProcedure);
+    expect(await (await env.SOURCES.get(`text/example-revision/${procedure.textSha256}.txt`))!.text()).toBe("# 1 Example procedure\nThe coordinator writes the register.\nThe reviewer reviews the exact version.\n");
+    expect(await (await env.SOURCES.get(`sources/index-revision/${indexHash}.md`))!.text()).toBe(rawIndex);
+    expect(await env.DB.prepare("SELECT id FROM revisions WHERE id='index-revision'").first()).toBeNull();
+  });
+  it("rejects provided source bytes whose hash differs before storing any object", async () => {
+    const input = await corpus(), bundle = await buildRelease(input), env = await emptyEnvironment();
+    await expect(installRelease(env, bundle, { environment: "iso-test-install", ruleBytes: input.rules, schemaBytes: input.schema, sourceBytes: { "example-revision": new TextEncoder().encode("different source") } })).rejects.toMatchObject({ code: "SOURCE_HASH" });
+    expect((await env.SOURCES.list()).objects).toHaveLength(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) n FROM context").first("n")).toBe(0);
+  });
+  it("requires original bytes when a bundle contains only normalized text with a different raw hash", async () => {
+    const input = await corpus(), rawIndex = "# Contents\r\nNavigation only.\r\n", hash = await sha256(rawIndex);
+    input.sources.push({ artifactId: "index", revisionId: "index-revision", code: "INDEX", title: "Contents", path: "synthetic/index.md", kind: "index", bytes: new TextEncoder().encode(rawIndex), sha256: hash });
+    input.mappings.sources.push({ sourceCode: "INDEX", revisionId: "index-revision", sourceSha256: hash, reviewStatus: "validated", reviewedBy: "synthetic reviewer", reviewedAt: "2026-01-01", clauses: [] });
+    const bundle = await buildRelease(input), env = await emptyEnvironment();
+    await expect(installRelease(env, bundle, { environment: "iso-test-install", ruleBytes: input.rules, schemaBytes: input.schema })).rejects.toMatchObject({ code: "SOURCE_BYTES_REQUIRED" });
+    expect((await env.SOURCES.list()).objects).toHaveLength(0);
+  });
   it("installs explicit demo knowledge without weakening source isolation or the empty-database fence", async () => {
     const input = await corpus();
     input.sourceMode = "production";

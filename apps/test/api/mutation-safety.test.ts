@@ -3,19 +3,20 @@ import {createTestEnvironment,type TestEnvironment} from '../support/environment
 import {getKnowledgeContext,get,getBundle} from '../../worker/src/lib/storage';
 import {registerRecord} from '../../worker/src/lib/artifacts';
 import {decideRevision} from '../../worker/src/lib/decisions';
+import {revisionVersion} from '../../worker/src/lib/conditions';
 import type {Artifact,Revision} from '../../worker/src/types';
 let env:TestEnvironment;afterEach(async()=>env?.cleanup());
 async function record(){const actor=await env.select('author');return registerRecord(env.bindings,actor,{file:new TextEncoder().encode('# 시험 기록\n시험 내용'),filename:'record.md',documentCode:'TEST-X',title:'시험',recordTypeIds:['test-F01'],scope:'',templateRevisionIds:['test-tpl-rev-1'],requestKey:'create-key',expectedContext:await getKnowledgeContext(env.bindings)})}
 it('missing source cannot acquire a fresh decision',async()=>{
  env=await createTestEnvironment();const r=await record();const revision=await get<Revision>(env.bindings,'revisions',r.revisionId);await env.bindings.SOURCES.delete(revision.objectKey);
- await expect(decideRevision(env.bindings,await env.select('author'),{artifactId:r.artifactId,revisionId:r.revisionId,decision:'submit',comment:'',requestKey:'submit',expectedContext:await getKnowledgeContext(env.bindings)})).rejects.toMatchObject({status:422});
+ await expect(decideRevision(env.bindings,await env.select('author'),{artifactId:r.artifactId,revisionId:r.revisionId,decision:'submit',comment:'',requestKey:'submit',expectedContext:await getKnowledgeContext(env.bindings),expectedRevisionVersion:await revisionVersion(revision)})).rejects.toMatchObject({status:422,code:'SOURCE_UNAVAILABLE'});
  expect(await env.bindings.DB.prepare('SELECT COUNT(*) n FROM decisions').first('n')).toBe(0);
 });
-it('R2 succeeded but D1 failed never registers a partial artifact or event',async()=>{
- env=await createTestEnvironment();await env.bindings.DB.prepare("CREATE TRIGGER inject_failure BEFORE INSERT ON revisions WHEN json_extract(NEW.body,'$.createdBy')='author' BEGIN SELECT RAISE(ABORT,'INJECTED_FAILURE'); END").run();
+it('R2 succeeded but D1 failed never registers a partial artifact or event and removes the unlinked upload',async()=>{
+ env=await createTestEnvironment();const stored=(await env.bindings.SOURCES.list()).objects.length;await env.bindings.DB.prepare("CREATE TRIGGER inject_failure BEFORE INSERT ON revisions WHEN json_extract(NEW.body,'$.createdBy')='author' BEGIN SELECT RAISE(ABORT,'INJECTED_FAILURE'); END").run();
  await expect(record()).rejects.toThrow('INJECTED_FAILURE');
  expect(await env.bindings.DB.prepare("SELECT COUNT(*) n FROM artifacts WHERE kind='record'").first('n')).toBe(0);expect(await env.bindings.DB.prepare('SELECT COUNT(*) n FROM events').first('n')).toBe(0);
- expect((await env.bindings.SOURCES.list({prefix:'sources/'})).objects.length).toBe(4);
+ expect((await env.bindings.SOURCES.list()).objects.length).toBe(stored);
 });
 it('unknown proposed system scope cannot be assigned on a new revision',async()=>{
  env=await createTestEnvironment();const r=await record();
@@ -34,6 +35,6 @@ it('a ten MiB Markdown file retains bounded metadata citations and remains submi
  const r=await registerRecord(env.bindings,await env.select('author'),{file:bytes,filename:'large.md',documentCode:'TEST-LARGE',title:'합성 최대 크기',recordTypeIds:['test-F01'],scope:'',templateRevisionIds:['test-tpl-rev-1'],requestKey:'large-create',expectedContext:await getKnowledgeContext(env.bindings)});
  const relations=(await env.bindings.DB.prepare('SELECT body FROM relations').all<{body:string}>()).results.map(row=>JSON.parse(row.body));
  expect(relations.every(relation=>relation.evidenceRefs[0].quote===heading.trim())).toBe(true);
- const result=await decideRevision(env.bindings,await env.select('author'),{artifactId:r.artifactId,revisionId:r.revisionId,decision:'submit',comment:'',requestKey:'large-submit',expectedContext:await getKnowledgeContext(env.bindings)}) as any;
+ const result=await decideRevision(env.bindings,await env.select('author'),{artifactId:r.artifactId,revisionId:r.revisionId,decision:'submit',comment:'',requestKey:'large-submit',expectedContext:await getKnowledgeContext(env.bindings),expectedRevisionVersion:await revisionVersion(await get<Revision>(env.bindings,'revisions',r.revisionId))}) as any;
  expect(result.status).toBe('in_review');
 });

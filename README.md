@@ -54,7 +54,7 @@ pnpm build
 
 `apps/worker/wrangler.toml`은 전용 Worker `iso-agent-demo`, D1 `iso-agent-demo`, R2 `iso-agent-demo-sources`, PyreWire Container를 연결한다. 로컬 DB 및 기존 다른 서비스의 자원과 분리한다. 직원 드롭다운은 인증 수단이 아니므로 데모에 실제 개인정보·업무 기록을 등록하지 않는다.
 
-Cloudflare 로그인과 실행 중인 Docker 호환 엔진이 필요하다. Podman을 사용하면 저장소 최상위에서 `export WRANGLER_DOCKER_BIN="$PWD/apps/engine/podman-docker.mjs"`로 지정한다. 이 어댑터는 Podman에서 지원하지 않는 Docker 전용 빌드 옵션만 제거한다. 최초 설치는 신규 빈 데모 DB에만 실행한다.
+Cloudflare 로그인과 실행 중인 Docker 호환 엔진이 필요하다. Podman을 사용하면 저장소 최상위에서 `export WRANGLER_DOCKER_BIN="$PWD/apps/engine/podman-docker.mjs"`로 지정한다. 이 어댑터는 Podman에서 지원하지 않는 Docker 전용 빌드 옵션을 제거한다. 또한 push 때 `--digestfile`로 레지스트리가 돌려준 manifest digest를 `output/runtime/podman/`에 기록하고, wrangler가 `image inspect --format '{{ json .RepoDigests }}'`로 묻는 값을 그 digest로 답한다. 이 어댑터로 push하지 않은 이미지는 로컬 `.Digest`로 답한다. 최초 설치는 신규 빈 데모 DB에만 실행한다.
 
 ```sh
 pnpm knowledge:check

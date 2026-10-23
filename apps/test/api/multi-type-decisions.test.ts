@@ -3,11 +3,15 @@ import app from '../../worker/src/index';
 import {createTestEnvironment,type TestEnvironment} from '../support/environment';
 import {get,getKnowledgeContext} from '../../worker/src/lib/storage';
 import {canonical,sha256} from '../../packages/knowledge/src/index';
-import {requiredDecisions} from '../../worker/src/lib/conditions';
+import {requiredDecisions,revisionVersion} from '../../worker/src/lib/conditions';
 import type {Revision} from '../../worker/src/types';
 let env:TestEnvironment;afterEach(async()=>env?.cleanup());
 async function headers(id:string){const actor=await env.select(id);return {cookie:`iso_session=${actor.sessionId}`,'X-Session-Version':'1'}}
-async function mutate(path:string,body:any,id='author') {return app.request(path,{method:'POST',headers:{...await headers(id),'Content-Type':'application/json'},body:JSON.stringify({requestKey:crypto.randomUUID(),expectedContext:await getKnowledgeContext(env.bindings),...body})},env.bindings)}
+async function mutate(path:string,body:any,id='author') {
+ const revisionId=body.revisionId??path.match(/^\/api\/revisions\/([^/]+)\/decisions$/)?.[1];
+ const expectedRevisionVersion=await revisionVersion(await get<Revision>(env.bindings,'revisions',revisionId));
+ return app.request(path,{method:'POST',headers:{...await headers(id),'Content-Type':'application/json'},body:JSON.stringify({requestKey:crypto.randomUUID(),expectedContext:await getKnowledgeContext(env.bindings),expectedRevisionVersion,...body})},env.bindings);
+}
 async function saveBundle(){env.bundle.manifest.manifestHash='';env.bundle.manifest.manifestHash=await sha256(canonical(env.bundle));await env.bindings.SOURCES.put('releases/test-release.json',JSON.stringify(env.bundle));await env.bindings.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(env.bundle.manifest),env.bundle.manifest.releaseId).run()}
 async function upload(types=['test-F01','test-F02']){
  const form=new FormData();form.set('file',new File(['# Synthetic combined record\nSection one\nSection two\nThe optional activity does not apply.'],'record.md'));form.set('documentCode','COMBINED-RECORD');form.set('title','Synthetic combined record');form.set('recordTypeIds',JSON.stringify(types));form.set('templateRevisionIds',JSON.stringify(types.map(id=>id==='test-F01'?'test-tpl-rev-1':'test-tpl-rev-2')));form.set('fieldMappings',JSON.stringify({'test-F01':'Section one','test-F02':'Section two'}));form.set('requestKey',crypto.randomUUID());form.set('expectedContext',JSON.stringify(await getKnowledgeContext(env.bindings)));

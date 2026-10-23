@@ -2,6 +2,11 @@ import {it,expect,afterEach,vi} from 'vitest';
 import app from '../../worker/src/index';
 import {createTestEnvironment,type TestEnvironment} from '../support/environment';
 import {getKnowledgeContext,get,getBundle} from '../../worker/src/lib/storage';
+import {syntheticBundle} from '../support/fixtures';
+import {buildRelease,canonical,extractSourceClauses,sha256} from '../../packages/knowledge/src/index';
+import {KNOWLEDGE_SCHEMA} from '../../packages/ontology/src/index';
+import {readFile} from 'node:fs/promises';
+import {queryGraph} from '../../worker/src/lib/engine';
 let env:TestEnvironment;afterEach(async()=>{vi.restoreAllMocks();await env?.cleanup()});
 async function headers(personId:string){const a=await env.select(personId);return {cookie:`iso_session=${a.sessionId}`,'X-Session-Version':'1'}}
 async function post(path:string,person:string,body:any){return app.request(path,{method:'POST',headers:{...await headers(person),'Content-Type':'application/json'},body:JSON.stringify({requestKey:crypto.randomUUID(),expectedContext:await getKnowledgeContext(env.bindings),...body})},env.bindings)}
@@ -47,6 +52,41 @@ async function upload(changeId:string,fields:Record<string,string>,text:string){
  return app.request(`/api/admin/regulation-changes/${changeId}/files`,{method:'POST',headers:await headers('admin'),body:data},env.bindings);
 }
 async function open(title:string){return ((await (await post('/api/admin/regulation-changes','admin',{title})).json()) as any).changeId as string}
+it('revalidates and publishes hierarchy at the new procedure revision',async()=>{
+ const base=await syntheticBundle(),markdown='# 시험 매뉴얼\n시험 절차는 이 매뉴얼을 구체화한다.\n',hash=await sha256(markdown);
+ const manual={artifactId:'test-manual',revisionId:'test-manual-rev',path:'synthetic/manual.md',code:'TEST-MANUAL',title:'시험 매뉴얼',kind:'manual' as const,sha256:hash,textSha256:hash,markdown};
+ const indexText='# 시험 문서체계\n시험 절차 → 시험 매뉴얼\n',indexHash=await sha256(indexText);
+ const index={artifactId:'test-index',revisionId:'test-index-rev',path:'synthetic/index.md',code:'TEST-INDEX',title:'시험 문서체계',kind:'index' as const,sha256:indexHash,textSha256:indexHash,markdown:indexText};
+ const sources=[...base.sources,manual,index],mappings=structuredClone(base.mappings);
+ mappings.sources.push({sourceCode:manual.code,revisionId:manual.revisionId,sourceSha256:hash,reviewStatus:'validated',reviewedBy:'synthetic reviewer',reviewedAt:'2026-01-01',clauses:extractSourceClauses(manual)});
+ mappings.sources.push({sourceCode:index.code,revisionId:index.revisionId,sourceSha256:indexHash,reviewStatus:'validated',reviewedBy:'synthetic reviewer',reviewedAt:'2026-01-01',clauses:[]});
+ mappings.relations=[{id:'test-hierarchy',subjectId:'test-reg-rev',objectId:manual.revisionId,type:'subordinate_to',origin:'regulation',reviewStatus:'validated',releaseId:'',evidenceRefs:[{revisionId:index.revisionId,sourceSha256:indexHash,lineStart:2,lineEnd:2,quote:indexText.split('\n')[1]}]}];
+ const bundle=await buildRelease({sources:sources.map(({markdown,...source})=>({...source,bytes:new TextEncoder().encode(markdown)})),mappings,sourceMode:'synthetic',schemaVersion:base.manifest.schemaVersion,schema:new TextEncoder().encode(canonical(KNOWLEDGE_SCHEMA)),rules:await readFile(new URL('../../packages/ontology/rules.dl',import.meta.url))});
+ env=await createTestEnvironment(bundle);
+ expect(await env.bindings.DB.prepare('SELECT id FROM revisions WHERE id=?').bind(index.revisionId).first()).toBeNull();
+ const changeId=await open('위계가 연결된 절차 개정'),path=`/api/admin/regulation-changes/${changeId}`,procedure=bundle.sources.find(source=>source.code==='TEST-PROC')!;
+ expect((await upload(changeId,{artifactId:procedure.artifactId,documentCode:procedure.code,title:procedure.title,kind:'procedure'},procedure.markdown+'\n절차 개정\n')).status).toBe(201);
+ const built=await post(`${path}/build`,'admin',{});expect(built.status).toBe(200);let candidate=await built.json() as any;
+ const relation=candidate.candidate.mappings.relations.find((item:any)=>item.id==='test-hierarchy');
+ expect(relation.reviewStatus).toBe('candidate');expect(relation.subjectId).not.toBe(procedure.revisionId);
+ const validated=await post(`${path}/decisions`,'admin',{decision:'validate_knowledge',candidateHash:candidate.change.candidateHash,comment:'위계와 개정 버전 확인'});expect(validated.status,await validated.clone().text()).toBe(200);candidate=await validated.json();
+ for(const [person,decision] of [['reviewer','review'],['director','approve']])expect((await post(`${path}/decisions`,person,{decision,candidateHash:candidate.change.candidateHash,comment:'확인'})).status).toBe(200);
+ expect((await post(`${path}/publish`,'director',{candidateHash:candidate.change.candidateHash})).status).toBe(200);
+ const context=await getKnowledgeContext(env.bindings),effective=await getBundle(env.bindings,context);
+ expect(effective.relations.find(item=>item.id==='test-hierarchy')).toMatchObject({subjectId:relation.subjectId,objectId:manual.revisionId,reviewStatus:'validated'});
+ const graph=await queryGraph(env.bindings,context,'trace',manual.revisionId);
+ expect(graph.relations.some(item=>item.id==='test-hierarchy')).toBe(true);
+ expect(graph.entities.find(item=>item.id===relation.subjectId)?.metadata).toMatchObject({regulationType:'procedure',hierarchyLevel:2});
+ expect(graph.entities.some(item=>item.id===index.revisionId||item.id===index.artifactId)).toBe(false);
+ const source=await app.request(`/api/source-index/${index.revisionId}`,{headers:await headers('reader')},env.bindings);
+ expect(source.status).toBe(200);expect(await source.json()).toMatchObject({source:{revisionId:index.revisionId,kind:'index'},markdown:indexText,evidenceStatus:'verified'});
+ const indexKey=`sources/${index.revisionId}/${index.sha256}.md`;
+ await env.bindings.SOURCES.put(indexKey,'변경된 목차');
+ expect((await queryGraph(env.bindings,context,'trace',manual.revisionId)).excluded).toContainEqual(expect.objectContaining({id:'test-hierarchy',reason:'SOURCE_CHANGED'}));
+ expect((await app.request(`/api/source-index/${index.revisionId}`,{headers:await headers('reader')},env.bindings)).status).toBe(422);
+ await env.bindings.SOURCES.delete(indexKey);
+ expect((await queryGraph(env.bindings,context,'trace',manual.revisionId)).excluded).toContainEqual(expect.objectContaining({id:'test-hierarchy',reason:'SOURCE_UNAVAILABLE'}));
+});
 it('CRLF uploads keep reviewed quotes; a stale change is rebased and a cancelled change frees its new code',async()=>{
  env=await createTestEnvironment();
  const procedure=env.bundle.sources.find(s=>s.code==='TEST-PROC')!,template=env.bundle.sources.find(s=>s.code==='test-F01')!;

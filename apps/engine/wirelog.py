@@ -19,10 +19,10 @@ RULES_HASH = hashlib.sha256(RULES_PATH.read_bytes()).hexdigest()
 ENGINE = {'name': 'PyreWire', 'version': version('pyrewire'), 'rulesHash': RULES_HASH}
 RELATION_TYPES = {'has_revision', 'contains_clause', 'states_requirement', 'addresses', 'governed_by',
                   'requires_record_type', 'uses_template', 'record_of_type', 'evidence_candidate_for',
-                  'references', 'change_depends_on', 'about_system', 'assignment_person', 'assignment_role',
+                  'references', 'subordinate_to', 'change_depends_on', 'about_system', 'assignment_person', 'assignment_role',
                   'policy_role', 'policy_resource_type', 'decision_on', 'receipt_for', 'supersedes'}
 TRACE_TYPES = {'has_revision', 'contains_clause', 'states_requirement', 'addresses', 'governed_by',
-               'requires_record_type', 'uses_template', 'record_of_type', 'evidence_candidate_for', 'about_system'}
+               'requires_record_type', 'uses_template', 'record_of_type', 'evidence_candidate_for', 'about_system', 'subordinate_to'}
 ACTIONS = {'read', 'create', 'revise', 'submit', 'review', 'approve', 'reject', 'circulate',
            'confirm_receipt', 'apply_assignment', 'publish'}
 
@@ -122,6 +122,13 @@ def query_graph(request):
                 raise ValueError('INVALID_RELATION')
             if predicate == 'change_depends_on' and relation.get('origin') == 'reference_extraction':
                 raise ValueError('REFERENCE_NOT_DEPENDENCY')
+            if predicate == 'subordinate_to':
+                child, parent = entities[source], entities[target]
+                kinds = (child.get('metadata', {}).get('regulationType'), parent.get('metadata', {}).get('regulationType'))
+                if (child.get('type') != 'ArtifactRevision' or parent.get('type') != 'ArtifactRevision'
+                        or kinds not in {('procedure', 'manual'), ('guide', 'procedure')}
+                        or relation.get('origin') != 'regulation'):
+                    raise ValueError('INVALID_HIERARCHY')
             reason = None
             if relation.get('releaseId') != context['releaseId']:
                 raise ValueError('RELATION_RELEASE_MISMATCH')

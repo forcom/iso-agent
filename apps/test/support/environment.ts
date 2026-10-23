@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { Miniflare } from 'miniflare';
 import type { Env } from '../../worker/src/types';
-import type { ActorContext } from '../../packages/contracts/src/index';
+import type { ActorContext, KnowledgeBundle } from '../../packages/contracts/src/index';
 import { syntheticBundle, syntheticAssignments } from './fixtures';
 import {canonical} from '../../packages/knowledge/src/index';
 import {KNOWLEDGE_SCHEMA} from '../../packages/ontology/src/index';
@@ -21,7 +21,7 @@ export function validateFixturePath(path:string) {
   if (!within(resolved,resolve(testRoot,'fixtures'))) throw new Error('Only isolated fixtures are allowed');
   return resolved;
 }
-export async function createTestEnvironment() {
+export async function createTestEnvironment(inputBundle?: KnowledgeBundle) {
  const base=resolve(repoRoot,'output/test/state');await mkdir(base,{recursive:true});
  const dir=await mkdtemp(resolve(base,'iso-test-'));
  validateTestTarget({name:'iso-test',remote:false,persistPath:dir});
@@ -29,7 +29,7 @@ export async function createTestEnvironment() {
  const bindings={DB:await mf.getD1Database('DB'),SOURCES:await mf.getR2Bucket('SOURCES'),ENGINE_URL:process.env.ISO_TEST_ENGINE_URL??'http://127.0.0.1:18765'} as unknown as Env;
  const migration=await readFile(resolve(repoRoot,'apps/worker/migrations/0001_erp.sql'),'utf8');
  for(const sql of migration.split('-- statement-breakpoint').map(s=>s.trim()).filter(Boolean)) await bindings.DB.prepare(sql).run();
- const bundle=await syntheticBundle();
+ const bundle=inputBundle??await syntheticBundle();
  await bindings.DB.prepare('INSERT INTO context VALUES(1,?,?,0,0)').bind(bundle.manifest.releaseId,bundle.manifest.rulesHash).run();
  await bindings.SOURCES.put('releases/test-release.json',JSON.stringify(bundle));
  await bindings.SOURCES.put(`definitions/rules/${bundle.manifest.rulesHash}`,await readFile(resolve(repoRoot,'apps/packages/ontology/rules.dl')));
@@ -38,6 +38,7 @@ export async function createTestEnvironment() {
  for(const s of bundle.sources) {
   const objectKey=`sources/${s.revisionId}/${s.sha256}.md`,textKey=`text/${s.revisionId}.txt`;
   await bindings.SOURCES.put(objectKey,s.markdown);await bindings.SOURCES.put(textKey,s.markdown);
+  if(s.kind==='index')continue;
   const a={id:s.artifactId,documentCode:s.code,title:s.title,kind:s.kind==='template'?'template':'regulation',regulationType:s.kind,recordTypeIds:[],workingRevisionId:s.revisionId,effectiveRevisionId:s.revisionId,systemIds:[]};
   const r={id:s.revisionId,artifactId:s.artifactId,filename:'test.md',sourceSha256:s.sha256,textSha256:s.textSha256,objectKey,textKey,state:'approved',createdAt:'2026-01-01',createdBy:'director',previousRevisionId:null,templateRevisionIds:[],systemIds:[],conditions:{},fieldMappings:{},evidenceStatus:'verified',...(s.revisionId==='test-reg-rev'?{externalDesignation:{confirmedBy:'director',confirmedAt:'2026-01-01',approvalEvidenceId:'synthetic-external-approval',sourceSha256:s.sha256}}:{})};
   await bindings.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(a.id,a.documentCode,a.kind,JSON.stringify(a)).run();

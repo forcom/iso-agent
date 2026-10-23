@@ -40,6 +40,25 @@ def query(snapshot, kind='impact', **kwargs):
 
 
 class GraphTests(unittest.TestCase):
+    def test_regulation_hierarchy_is_traced_without_transferring_evidence_or_impact(self):
+        data = fixture()
+        data['entities'] = [dict(id=id, type='ArtifactRevision', label=id,
+                                 metadata={'artifactKind': 'regulation', 'regulationType': kind})
+                            for id, kind in [('A', 'manual'), ('B', 'procedure'), ('C', 'guide')]]
+        data['relations'] = [relation('procedure-manual', 'B', 'A', 'subordinate_to'),
+                             relation('guide-procedure', 'C', 'B', 'subordinate_to')]
+        for item in data['relations']:
+            item['origin'] = 'regulation'
+        result = query(data, 'trace')
+        self.assertEqual({r['id'] for r in result['relations']}, {'procedure-manual', 'guide-procedure'})
+        self.assertEqual(query(data, 'neighbors', depth=1)['totalRelations'], 1)
+        self.assertEqual(query(data, 'neighbors', depth=2)['totalRelations'], 2)
+        self.assertEqual(query(data, 'impact')['relations'], [])
+        self.assertEqual(result['evidenceCandidates'], [])
+        data['relations'][1]['objectId'] = 'A'
+        with self.assertRaisesRegex(ValueError, 'INVALID_HIERARCHY'):
+            query(data, 'trace')
+
     def test_references_do_not_become_dependencies_and_cycles_preserve_all_paths(self):
         result = query(fixture())
         self.assertEqual({r['id'] for r in result['relations']}, {'ab', 'ac', 'bd', 'cd', 'da'})

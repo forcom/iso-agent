@@ -16,7 +16,8 @@ async function computeSnapshot(env:Env,context:KnowledgeContext) {
  const bundle=await getBundle(env,context);
  const [artifacts,revisions,relations,assignments,decisions,persons,receipts]=await Promise.all([all<Artifact>(env,'artifacts'),all<Revision>(env,'revisions'),all<Relation>(env,'relations'),all<RoleAssignment>(env,'assignments'),all<{id:string;revisionId:string;decision:string;sourceSha256?:string;actorId?:string}>(env,'decisions'),all<Person>(env,'persons'),all<{id:string;revisionId:string;personId:string;kind:string}>(env,'receipts')]);
  const sourceStates=new Map<string,{status:EvidenceStatus;hash?:string;raw?:string;text?:string}>();
- await Promise.all(revisions.map(async revision=>{
+ const sourceRevisions=[...revisions,...bundle.sources.filter(source=>source.kind==='index').map(source=>({id:source.revisionId,objectKey:`sources/${source.revisionId}/${source.sha256}.md`,sourceSha256:source.sha256,textSha256:source.textSha256,evidenceStatus:'verified' as const}))];
+ await Promise.all(sourceRevisions.map(async revision=>{
   if(revision.evidenceStatus!=='verified'){sourceStates.set(revision.id,{status:revision.evidenceStatus});return}
   const object=await env.SOURCES.get(revision.objectKey);
   if(!object){sourceStates.set(revision.id,{status:'unavailable'});return}

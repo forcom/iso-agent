@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, recalledCitation, label, mutationContext, post, stateOf, type ActionSet, type Artifact, type Collection, type Content, type Detail, type Evidence, type Item, type Person, personId } from '../api';
+import { REGULATION_HIERARCHY } from '../../../packages/ontology/src/index';
+import { ApiError, api, recalledCitation, label, mutationContext, post, stateOf, type ActionSet, type Artifact, type Collection, type Content, type Detail, type Evidence, type Item, type Person, personId } from '../api';
 import { useDirty, useLoad, useSession } from '../session';
 import { useWorkspaceTab } from '../workspace-tabs';
 import { actionReason, eventLabel, Empty, ErrorNotice, EvidenceList, ItemList, JsonDetails, Loading, Modal, PageTitle, Panel, Source, Status } from '../components/ui';
+
+const documentTypes: Record<string, string> = { ...Object.fromEntries(Object.entries(REGULATION_HIERARCHY).map(([kind, value]) => [kind, value.label])), template: '빈 양식' };
+function artifactTypeLabel(artifact: Artifact) { return artifact.kind === 'record' ? '기록' : documentTypes[artifact.regulationType ?? artifact.kind] ?? '유형 미확인'; }
 
 export function ArtifactList({ records = false }: { records?: boolean }) {
   const [params, setParams] = useSearchParams();
   const [upload, setUpload] = useState(false);
   const [query, setQuery] = useState(params.get('q') ?? '');
-  const kind = params.get('kind') ?? '';
+  const kind = params.get('kind') === 'regulation' ? '' : params.get('kind') ?? '';
   const load = useLoad<Collection<Artifact>>(`/artifacts?${new URLSearchParams({ category: records ? 'records' : 'documents', q: params.get('q') ?? '', kind: records ? 'record' : kind })}`);
   const items = load.data?.items.filter(item => records ? item.kind === 'record' : item.kind !== 'record') ?? [];
   return <><PageTitle title={records ? '기록관리' : '규정·양식'} description={records ? '업로드한 기록과 버전별 검토·승인 이력을 확인합니다.' : '매뉴얼·절차서·지침서·빈 양식과 시행 버전을 확인합니다.'} actions={records ? <button className="primary" onClick={() => setUpload(true)}>기록 업로드</button> : <Link className="button" to="/admin/regulations">규정 제·개정</Link>}/>
-    <form className="filter-band" onSubmit={event => { event.preventDefault(); setParams({ q: query, kind }); }}><label>검색어<input value={query} onChange={event => setQuery(event.target.value)} placeholder="문서번호 또는 제목"/></label>{!records && <label>문서 유형<select aria-label="문서 유형" value={kind} onChange={event => setParams({ q: query, kind: event.target.value })}><option value="">전체</option><option value="regulation">규정</option><option value="template">빈 양식</option></select></label>}<button className="primary">조회</button><button type="button" onClick={() => { setQuery(''); setParams({}); }}>초기화</button></form>
+    <form className="filter-band" onSubmit={event => { event.preventDefault(); setParams({ q: query, kind }); }}><label>검색어<input value={query} onChange={event => setQuery(event.target.value)} placeholder="문서번호 또는 제목"/></label>{!records && <label>문서 유형<select aria-label="문서 유형" value={kind} onChange={event => setParams({ q: query, kind: event.target.value })}><option value="">전체</option>{Object.entries(documentTypes).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>}<button className="primary">조회</button><button type="button" onClick={() => { setQuery(''); setParams({}); }}>초기화</button></form>
     <ErrorNotice error={load.error} retry={load.refresh}/>{load.loading ? <Loading/> : load.data && <Panel><div className="table-caption">{items.length}개 자료 <span>전체 임직원 공통 열람</span></div><ArtifactTable items={items}/></Panel>}
     {upload && <UploadModal onClose={() => setUpload(false)}/>}
   </>;
 }
-export function ArtifactTable({ items }: { items: Artifact[] }) { return items.length ? <div className="table-wrap"><table><thead><tr><th>문서번호</th><th>자료명</th><th>유형</th><th>버전</th><th>보기</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td className="mono">{item.documentCode}</td><td><Link to={`/${item.kind === 'record' ? 'records' : 'documents'}/${item.id}`}>{label(item)}</Link></td><td>{item.kind === 'template' ? '빈 양식' : item.kind === 'record' ? '기록' : '규정'}</td><td>{item.effectiveRevisionId ? '시행본 있음' : item.workingRevisionId ? '작업본' : '미등록'}</td><td><Link to={`/${item.kind === 'record' ? 'records' : 'documents'}/${item.id}`}>원문</Link></td></tr>)}</tbody></table></div> : <Empty/>; }
+export function ArtifactTable({ items }: { items: Artifact[] }) { return items.length ? <div className="table-wrap"><table><thead><tr><th>문서번호</th><th>자료명</th><th>유형</th><th>버전</th><th>보기</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td className="mono">{item.documentCode}</td><td><Link to={`/${item.kind === 'record' ? 'records' : 'documents'}/${item.id}`}>{label(item)}</Link></td><td>{artifactTypeLabel(item)}</td><td>{item.effectiveRevisionId ? '시행본 있음' : item.workingRevisionId ? '작업본' : '미등록'}</td><td><Link to={`/${item.kind === 'record' ? 'records' : 'documents'}/${item.id}`}>원문</Link></td></tr>)}</tbody></table></div> : <Empty/>; }
 export function UploadModal({ artifact, onClose, onSuccess }: { artifact?: Artifact; onClose: () => void; onSuccess?: () => void }) {
   const { me, refresh: refreshSession } = useSession();
   const navigate = useNavigate();
@@ -75,13 +79,24 @@ export function ArtifactDetail({ review = false }: { review?: boolean }) {
   useEffect(() => { setCompare(''); if (artifact) visit(artifact.id, artifact.kind); }, [artifact?.id, visit]);
   const refresh = () => { load.refresh(); content.refresh(); actions.refresh(); };
   if (load.loading && !load.data) return <Loading/>;
+  if (reviewRevisionId && load.error instanceof ApiError && load.error.status === 404) return <IndexSource revisionId={reviewRevisionId}/>;
   if (load.error) return <ErrorNotice error={load.error} retry={load.refresh}/>;
   if (!artifact || !load.data) return <Empty/>;
-  return <><PageTitle title={label(artifact)} description={`${artifact.documentCode} · ${artifact.kind === 'record' ? '기록' : artifact.kind === 'template' ? '빈 양식' : '규정'}`} actions={<><Link className="button" to={`/trace?mode=neighbors&id=${artifact.id}`}>주변 관계</Link>{artifact.kind === 'record' && <button disabled={!currentActions?.actions.find(action => action.action === 'revise')?.allowed} onClick={() => setUpload(true)}>새 버전 업로드</button>}</>}/>
+  return <><PageTitle title={label(artifact)} description={`${artifact.documentCode} · ${artifactTypeLabel(artifact)}`} actions={<><Link className="button" to={`/trace?mode=neighbors&id=${artifact.id}`}>주변 관계</Link>{artifact.kind === 'record' && <button disabled={!currentActions?.actions.find(action => action.action === 'revise')?.allowed} onClick={() => setUpload(true)}>새 버전 업로드</button>}</>}/>
     <div className="mobile-panes" role="tablist" aria-label="자료 상세 영역">{[['list','목록'],['source','원문'],['decision','판단·이력']].map(([value,text]) => <button role="tab" aria-selected={pane === value} key={value} onClick={() => setPane(value)}>{text}</button>)}</div>
     <div className={`workbench pane-${pane}`}><aside className="workbench-list panel"><div className="panel-heading"><h2>자료 목록</h2></div><ItemList items={queue.data?.items ?? []} to={item => `/${item.kind === 'record' ? 'records' : 'documents'}/${item.id}`}/></aside>
     <section className="workbench-source panel"><div className="panel-heading"><h2>원문</h2><Status value={stateOf(currentRevision)}/></div><div className="panel-body"><div className="version-toolbar"><label>열람 버전<select aria-label="열람 버전" value={revisionId ?? ''} onChange={event => { if (!dirty || window.confirm('제출하지 않은 의견이 사라집니다. 열람 버전을 변경하시겠습니까?')) setParams({ revision: event.target.value }); }}>{load.data.revisions.map((rev,i) => <option key={rev.id} value={rev.id}>{i + 1} · {rev.createdAt ?? rev.id} · {stateOf(rev)}</option>)}</select></label><label>비교 버전<select aria-label="비교 버전" value={compare} onChange={event => setCompare(event.target.value)}><option value="">비교 안 함</option>{load.data.revisions.filter(rev => rev.id !== revisionId).map(rev => <option key={rev.id} value={rev.id}>{rev.createdAt ?? rev.id}</option>)}</select></label></div><ErrorNotice error={content.error} retry={content.refresh}/>{content.loading && <Loading/>}{content.data && <><p className="meta"><Status value={content.data.evidenceStatus}/><span className="mono">SHA-256 {content.data.revision.sourceSha256 ?? content.data.revision.sourceHash ?? '미제공'}</span></p><Source markdown={content.data.markdown} citation={citation} sourceHash={content.data.revision.sourceSha256} links={queue.data?.items}/></>}{compare && <Panel title="비교 대상 원문"><ErrorNotice error={comparison.error}/>{comparison.data && <Source markdown={comparison.data.markdown}/>}</Panel>}</div></section>
     <aside className="workbench-decision stack">{artifact.kind === 'record' && revisionId && <RecordActions key={`${artifact.id}:${revisionId}`} artifact={artifact} revisionId={revisionId} actions={!content.loading && content.data?.revision.id === revisionId ? currentActions : null} error={actions.error} onSuccess={refresh}/>}<Panel title="버전·결정 이력">{load.data.events.length ? <ol className="timeline">{load.data.events.map(event => <li key={event.id}><strong>{eventLabel(event.action ?? event.kind ?? event.type ?? label(event))}</strong><p>{String(event.reason ?? event.comment ?? '')}</p><small>{String(event.createdAt ?? event.at ?? '')} · {String(event.actorName ?? event.actorId ?? '')}</small></li>)}</ol> : <Empty>등록된 결정 이력이 없습니다.</Empty>}</Panel>{load.data.relations?.length ? <JsonDetails value={load.data.relations} title="이 자료의 관계 근거"/> : null}</aside></div>{upload && <UploadModal artifact={artifact} onClose={() => setUpload(false)} onSuccess={refresh}/>}</>;
+}
+function IndexSource({ revisionId }: { revisionId: string }) {
+  const [params] = useSearchParams();
+  const load = useLoad<{source: {title: string; code: string; sha256: string}; markdown: string; evidenceStatus: string}>(`/source-index/${encodeURIComponent(revisionId)}`);
+  useWorkspaceTab(load.data ? `source-index:${revisionId}` : undefined, load.data?.source.title);
+  if (load.loading) return <Loading/>;
+  if (load.error) return <ErrorNotice error={load.error} retry={load.refresh}/>;
+  if (!load.data) return <Empty/>;
+  const {source, markdown, evidenceStatus} = load.data;
+  return <><PageTitle title={source.title} description={`${source.code} · 문서체계·목차 원문`}/><Panel title="원문"><p className="meta"><Status value={evidenceStatus}/><span className="mono">SHA-256 {source.sha256}</span></p><Source markdown={markdown} citation={recalledCitation(params.get('citation'))} sourceHash={source.sha256}/></Panel></>;
 }
 function RecordActions({ artifact, revisionId, actions, error, onSuccess }: { artifact: Artifact; revisionId: string; actions: ActionSet | null; error: Error | null; onSuccess: () => void }) {
   const {refresh: refreshSession} = useSession();

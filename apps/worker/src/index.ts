@@ -3,6 +3,7 @@ import type { AppEnv } from "./types";
 import {getCookie} from 'hono/cookie';
 import {sessionRoutes,resolveActor} from './routes/session';
 import {ApiError,requireValue} from './lib/errors';
+import {requestScope} from './lib/storage';
 import {artifactRoutes} from './routes/artifacts';
 import {recordRoutes} from './routes/records';
 import {reviewRoutes} from './routes/reviews';
@@ -12,7 +13,7 @@ import {adminRoutes} from './routes/admin';
 import {assignmentRoutes} from './routes/assignments';
 
 const app = new Hono<AppEnv>();
-app.use('/api/*',async(c,next)=>{c.header('Cache-Control','no-store');await next()});
+app.use('/api/*',async(c,next)=>{c.header('Cache-Control','no-store');await requestScope.run(new Map(),next)});
 app.onError((error,c)=>{
  if(error instanceof ApiError)return c.json({error:{code:error.code,message:error.message,details:error.details}},error.status as 400);
  if(error instanceof SyntaxError)return c.json({error:{code:'INVALID_INPUT',message:'요청 형식을 확인해 주세요.'}},422);

@@ -1,7 +1,7 @@
 import type { ActorContext, AssignmentApplyInput, AssignmentResult, KnowledgeContext, Person, RoleAssignment } from '../../../packages/contracts/src/index';
 import { canonical } from '../../../packages/knowledge/src/index';
 import type { Artifact, Env, Revision } from '../types';
-import { all, assertContext, commitMutation, event, get, getBundle, getKnowledgeContext, replay, update } from './storage';
+import { all, assertContext,assertExpectedContext, commitMutation, event, get, getBundle, getKnowledgeContext, replay, update } from './storage';
 import { readRevision, resourceFor } from './artifacts';
 import { requireAuthorization, snapshot } from './engine';
 import { ApiError, requireValue, textField } from './errors';
@@ -101,7 +101,7 @@ export async function listRoleAssignments(env:Env,actor:ActorContext) {
 export async function applyRoleAssignment(env:Env,actor:ActorContext,input:AssignmentApplyInput):Promise<AssignmentResult> {
  requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('assignment.apply',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const context=await getKnowledgeContext(env);assertContext(input.expectedContext,context);
+ const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  requireValue(Array.isArray(input.assignments)&&input.assignments.length>0,422,'ASSIGNMENTS_REQUIRED','대조한 지정 후보를 선택해 주세요.');
  const {artifact,revision,assignments}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
  requireValue(new Set(input.assignments.map(item=>item.id)).size===input.assignments.length&&input.assignments.every(item=>assignments.some(candidate=>canonical(candidate)===canonical(item))),422,'ASSIGNMENT_CANDIDATE_MISMATCH','적용 값이 승인된 원문의 지정 후보와 일치하지 않습니다.');

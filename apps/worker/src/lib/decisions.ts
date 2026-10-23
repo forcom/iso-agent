@@ -1,13 +1,13 @@
 import {requestHash} from './requests';
 import type {ActorContext,DecisionInput} from '../../../packages/contracts/src/index';
 import type {Artifact,Env,Revision} from '../types';
-import {all,assertContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
+import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
 import {authorizeRecordAction,requiredDecisions,submissionStale} from './conditions';
 import {readRevision} from './artifacts';
 import {requireValue,textField} from './errors';
 export async function decideRevision(env:Env,actor:ActorContext,input:DecisionInput) {
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('record.decide',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const context=await getKnowledgeContext(env);assertContext(input.expectedContext,context);
+ const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  const revision=await get<Revision>(env,'revisions',input.revisionId),artifact=await get<Artifact>(env,'artifacts',revision.artifactId);
  requireValue(artifact.kind==='record',422,'INVALID_RESOURCE','기록 검토 경로를 사용해 주세요.');
  requireValue(artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','새 작업 버전이 등록되었습니다.');

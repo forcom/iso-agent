@@ -1,11 +1,18 @@
 import type {ActorContext,KnowledgeContext,KnowledgeBundle,Entity,Relation,RoleAssignment,Person,Action,AuthorizationDecision,GraphResult,GraphOperation,EvidenceRef,EvidenceStatus} from '../../../packages/contracts/src/index';
 import type {Artifact,Env,Revision} from '../types';
 import {ApiError,requireValue} from './errors';
-import {all,assertContext,getBundle,getKnowledgeContext} from './storage';
+import {all,assertContext,getBundle,getKnowledgeContext,loadRelease,requestMemo} from './storage';
 import {sha256} from './markdown';
 import {administratorAssignmentEligible} from '../routes/session';
 import {canonical} from '../../../packages/knowledge/src/index';
+// ponytail: memoized per request only; every request still re-reads and re-hashes all R2 sources.
+// Cache verified source hashes by R2 etag across requests if revision counts make that slow.
 export async function snapshot(env:Env,context:KnowledgeContext) {
+ const data=await requestMemo(`snapshot:${canonical(context)}`,()=>computeSnapshot(env,context));
+ assertContext(context,await getKnowledgeContext(env));
+ return {...data};
+}
+async function computeSnapshot(env:Env,context:KnowledgeContext) {
  const bundle=await getBundle(env,context);
  const [artifacts,revisions,relations,assignments,decisions,persons,receipts]=await Promise.all([all<Artifact>(env,'artifacts'),all<Revision>(env,'revisions'),all<Relation>(env,'relations'),all<RoleAssignment>(env,'assignments'),all<{id:string;revisionId:string;decision:string;sourceSha256?:string;actorId?:string}>(env,'decisions'),all<Person>(env,'persons'),all<{id:string;revisionId:string;personId:string;kind:string}>(env,'receipts')]);
  const sourceStates=new Map<string,{status:EvidenceStatus;hash?:string;raw?:string;text?:string}>();
@@ -55,16 +62,7 @@ export async function snapshot(env:Env,context:KnowledgeContext) {
   const missing=[relation.subjectId,relation.objectId].filter(id=>!byId.has(id));if(!missing.length)continue;
   const releaseId=relation.createdReleaseId??relation.releaseId;
   let historical=historicalBundles.get(releaseId);
-  if(!historical){
-   const row=await env.DB.prepare('SELECT object_key,body FROM releases WHERE id=?').bind(releaseId).first<{object_key:string;body:string}>();
-   const object=row?await env.SOURCES.get(row.object_key):null;
-   requireValue(object,503,'KNOWLEDGE_UNAVAILABLE','기록에 연결된 이전 지식 릴리스 원본이 없습니다.');
-   historical=await object.json<KnowledgeBundle>();
-   requireValue(historical.manifest.releaseId===releaseId,503,'KNOWLEDGE_UNAVAILABLE','이전 지식 릴리스의 식별자가 일치하지 않습니다.');
-   const expected=JSON.parse(row!.body).manifestHash,copy=structuredClone(historical);copy.manifest.manifestHash='';
-   requireValue(historical.manifest.manifestHash===expected&&await sha256(canonical(copy))===expected,503,'KNOWLEDGE_CHANGED','이전 지식 릴리스가 설치된 해시와 다릅니다.');
-   historicalBundles.set(releaseId,historical);
-  }
+  if(!historical){historical=await loadRelease(env,releaseId);historicalBundles.set(releaseId,historical)}
   for(const id of missing){
    const definition=historical.entities.find(entity=>entity.id===id);
    requireValue(definition,503,'KNOWLEDGE_UNAVAILABLE','기록의 이전 분류 정의를 찾을 수 없습니다.');

@@ -11,11 +11,11 @@ it('missing source cannot acquire a fresh decision',async()=>{
  await expect(decideRevision(env.bindings,await env.select('author'),{artifactId:r.artifactId,revisionId:r.revisionId,decision:'submit',comment:'',requestKey:'submit',expectedContext:await getKnowledgeContext(env.bindings)})).rejects.toMatchObject({status:422});
  expect(await env.bindings.DB.prepare('SELECT COUNT(*) n FROM decisions').first('n')).toBe(0);
 });
-it('R2 succeeded but D1 failed never registers a partial artifact or event',async()=>{
- env=await createTestEnvironment();await env.bindings.DB.prepare("CREATE TRIGGER inject_failure BEFORE INSERT ON revisions WHEN json_extract(NEW.body,'$.createdBy')='author' BEGIN SELECT RAISE(ABORT,'INJECTED_FAILURE'); END").run();
+it('R2 succeeded but D1 failed never registers a partial artifact or event and removes the unlinked upload',async()=>{
+ env=await createTestEnvironment();const stored=(await env.bindings.SOURCES.list()).objects.length;await env.bindings.DB.prepare("CREATE TRIGGER inject_failure BEFORE INSERT ON revisions WHEN json_extract(NEW.body,'$.createdBy')='author' BEGIN SELECT RAISE(ABORT,'INJECTED_FAILURE'); END").run();
  await expect(record()).rejects.toThrow('INJECTED_FAILURE');
  expect(await env.bindings.DB.prepare("SELECT COUNT(*) n FROM artifacts WHERE kind='record'").first('n')).toBe(0);expect(await env.bindings.DB.prepare('SELECT COUNT(*) n FROM events').first('n')).toBe(0);
- expect((await env.bindings.SOURCES.list({prefix:'sources/'})).objects.length).toBe(4);
+ expect((await env.bindings.SOURCES.list()).objects.length).toBe(stored);
 });
 it('unknown proposed system scope cannot be assigned on a new revision',async()=>{
  env=await createTestEnvironment();const r=await record();

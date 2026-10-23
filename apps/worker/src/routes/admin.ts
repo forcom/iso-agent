@@ -2,7 +2,7 @@ import {Hono} from 'hono';
 import type {AppEnv} from '../types';
 import {all,get} from '../lib/storage';
 import {uploadInput} from './records';
-import {addRegulationFile,buildRegulationChange,changeDetails,createRegulationChange,decideRegulationChange,publishRegulationChange,requireAdmin,withdrawRegulation} from '../lib/releases';
+import {addRegulationFile,buildRegulationChange,cancelRegulationChange,rebaseRegulationChange,changeDetails,createRegulationChange,decideRegulationChange,publishRegulationChange,requireAdmin,withdrawRegulation} from '../lib/releases';
 export const adminRoutes=new Hono<AppEnv>();
 adminRoutes.get('/admin/regulation-changes',async c=>c.json({items:await all(c.env,'regulation_changes')}));
 adminRoutes.get('/admin/regulation-changes/:id',async c=>c.json(await changeDetails(c.env,c.req.param('id'))));
@@ -11,6 +11,8 @@ adminRoutes.post('/admin/regulation-changes/:id/files',async c=>c.json(await add
 adminRoutes.post('/admin/regulation-changes/:id/withdrawals',async c=>c.json(await withdrawRegulation(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 adminRoutes.post('/admin/regulation-changes/:id/build',async c=>c.json(await buildRegulationChange(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 adminRoutes.post('/admin/regulation-changes/:id/decisions',async c=>c.json(await decideRegulationChange(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
+adminRoutes.post('/admin/regulation-changes/:id/cancel',async c=>c.json(await cancelRegulationChange(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
+adminRoutes.post('/admin/regulation-changes/:id/rebase',async c=>c.json(await rebaseRegulationChange(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 adminRoutes.post('/admin/regulation-changes/:id/publish',async c=>c.json(await publishRegulationChange(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 adminRoutes.get('/admin/releases',async c=>c.json({items:await all(c.env,'releases')}));
 adminRoutes.get('/admin/releases/:id',async c=>c.json(await get(c.env,'releases',c.req.param('id'))));

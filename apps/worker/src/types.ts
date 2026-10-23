@@ -24,7 +24,7 @@ export interface Revision {
 }
 export interface Change {
   id:string; title:string; baseContext:KnowledgeContext; revisionIds:string[]; withdrawnArtifactIds:string[];
-  state:'draft'|'built'|'validated'|'approved'|'published'; createdBy:string; createdAt:string;
+  state:'draft'|'built'|'validated'|'approved'|'published'|'cancelled'; createdBy:string; createdAt:string;
   candidateReleaseId?:string; candidateHash?:string; validation?:unknown; diff?:unknown;
   knowledgeValidation?:{personId:string;hash:string;at:string};
 }

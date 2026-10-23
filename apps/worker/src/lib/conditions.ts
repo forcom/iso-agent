@@ -1,7 +1,7 @@
 import {requestHash} from './requests';
 import type {Action,ActorContext,AuthorizationDecision,KnowledgeBundle,KnowledgeContext,PolicyCondition,RecordType} from '../../../packages/contracts/src/index';
 import type {Env,Artifact,Revision} from '../types';
-import {all,assertContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
+import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
 import {readRevision,resourceFor} from './artifacts';
 import {authorize} from './engine';
 import {sha256} from './markdown';
@@ -60,7 +60,7 @@ export async function authorizeRecordAction(env:Env,actor:ActorContext,artifact:
 }
 export async function confirmConditions(env:Env,actor:ActorContext,artifactId:string,input:any){
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('record.conditions',{...input,artifactId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const context=await getKnowledgeContext(env);assertContext(input.expectedContext,context);const artifact=await get<Artifact>(env,'artifacts',artifactId),revision=await get<Revision>(env,'revisions',input.revisionId);
+ const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);const artifact=await get<Artifact>(env,'artifacts',artifactId),revision=await get<Revision>(env,'revisions',input.revisionId);
  requireValue(revision.artifactId===artifactId && artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','현재 작업 버전이 아닙니다.');requireValue(['in_review','draft','rejected'].includes(revision.state),409,'STATE_CONFLICT','결정 전 작업 버전에서 조건을 확인해 주세요.');
  const bundle=await getBundle(env,context),known=typeConditions(bundle,artifact.recordTypeIds),{markdown}=await readRevision(env,revision.id);
  requireValue(Array.isArray(input.confirmations)&&input.confirmations.length>0,422,'CONFIRMATION_REQUIRED','확인할 조건과 원문을 지정해 주세요.');

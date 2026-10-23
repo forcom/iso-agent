@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks';
 import type { ActorContext, KnowledgeBundle, KnowledgeContext } from '../../../packages/contracts/src/index';
 import type { Env } from '../types';
 import { ApiError, requireValue } from './errors';
@@ -20,20 +21,49 @@ export function update(env:Env,table:Table,id:string,body:unknown) { return env.
 export function event(env:Env,artifactId:string|null,body:Record<string,unknown>) {
  const id=crypto.randomUUID(); return env.DB.prepare('INSERT INTO events(id,artifact_id,body) VALUES (?,?,?)').bind(id,artifactId,JSON.stringify({id,artifactId,at:new Date().toISOString(),...body}));
 }
-export async function getBundle(env:Env,context:KnowledgeContext):Promise<KnowledgeBundle> {
- const row=await env.DB.prepare('SELECT object_key,body FROM releases WHERE id=?').bind(context.releaseId).first<{object_key:string;body:string}>();
+// Per-request memo scope; code called outside a request (CLI, tests) simply computes again.
+export const requestScope=new AsyncLocalStorage<Map<string,unknown>>();
+export function requestMemo<T>(key:string,compute:()=>Promise<T>):Promise<T> {
+ const store=requestScope.getStore();if(!store)return compute();
+ if(!store.has(key))store.set(key,compute().catch(error=>{store.delete(key);throw error}));
+ return store.get(key) as Promise<T>;
+}
+function deepFreeze<T>(value:T):T {
+ if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const item of Object.values(value))deepFreeze(item)}
+ return value;
+}
+// Verified bundles are immutable; a cheap HEAD etag check still detects a replaced R2 object.
+const verifiedReleases=new Map<string,{etag:string;bundle:KnowledgeBundle}>();
+export async function loadRelease(env:Env,releaseId:string):Promise<KnowledgeBundle> {
+ const row=await env.DB.prepare('SELECT object_key,body FROM releases WHERE id=?').bind(releaseId).first<{object_key:string;body:string}>();
  if(!row) throw new ApiError(503,'KNOWLEDGE_UNAVAILABLE','릴리스가 없습니다.');
+ const expected=JSON.parse(row.body).manifestHash,cacheKey=`${releaseId}:${row.object_key}:${expected}`;
+ const cached=verifiedReleases.get(cacheKey);
+ if(cached){const head=await env.SOURCES.head(row.object_key);if(head?.etag===cached.etag)return cached.bundle}
  const object=await env.SOURCES.get(row.object_key); if(!object) throw new ApiError(503,'KNOWLEDGE_UNAVAILABLE','릴리스 원본이 없습니다.');
  const bundle=await object.json<KnowledgeBundle>();
- requireValue(bundle.manifest.releaseId===context.releaseId && bundle.manifest.rulesHash===context.rulesHash,503,'KNOWLEDGE_UNAVAILABLE','릴리스 기준이 일치하지 않습니다.');
- const expected=JSON.parse(row.body).manifestHash,copy=structuredClone(bundle);copy.manifest.manifestHash='';
- requireValue(bundle.manifest.manifestHash===expected&&await sha256(canonical(copy))===expected,503,'KNOWLEDGE_CHANGED','시행 지식의 내용이 설치된 해시와 다릅니다.');
+ requireValue(bundle.manifest.releaseId===releaseId,503,'KNOWLEDGE_UNAVAILABLE','릴리스 식별자가 일치하지 않습니다.');
+ const copy=structuredClone(bundle);copy.manifest.manifestHash='';
+ requireValue(bundle.manifest.manifestHash===expected&&await sha256(canonical(copy))===expected,503,'KNOWLEDGE_CHANGED','지식 릴리스의 내용이 설치된 해시와 다릅니다.');
+ verifiedReleases.set(cacheKey,{etag:object.etag,bundle:deepFreeze(bundle)});
+ return bundle;
+}
+export async function getBundle(env:Env,context:KnowledgeContext):Promise<KnowledgeBundle> {
+ const bundle=await loadRelease(env,context.releaseId);
+ requireValue(bundle.manifest.rulesHash===context.rulesHash,503,'KNOWLEDGE_UNAVAILABLE','릴리스 기준이 일치하지 않습니다.');
  return bundle;
 }
 export function assertContext(expected:unknown,actual:KnowledgeContext):asserts expected is KnowledgeContext {
  requireValue(!!expected && typeof expected==='object',422,'EXPECTED_CONTEXT_REQUIRED','현재 조회 기준이 필요합니다.');
  const e=expected as KnowledgeContext;
  requireValue(e.releaseId===actual.releaseId && e.dataRevision===actual.dataRevision && e.authorityRevision===actual.authorityRevision && e.rulesHash===actual.rulesHash,409,'CONTEXT_CONFLICT','자료 또는 권한이 변경되었습니다. 다시 확인해 주세요.');
+}
+/** Client screens fence on release and authority only. Each mutation re-checks its own target
+ * (working revision, state, candidate hash), and commitMutation fences the server-read dataRevision. */
+export function assertExpectedContext(expected:unknown,actual:KnowledgeContext):asserts expected is KnowledgeContext {
+ requireValue(!!expected && typeof expected==='object',422,'EXPECTED_CONTEXT_REQUIRED','현재 조회 기준이 필요합니다.');
+ const e=expected as KnowledgeContext;
+ requireValue(e.releaseId===actual.releaseId && e.authorityRevision===actual.authorityRevision && e.rulesHash===actual.rulesHash,409,'CONTEXT_CONFLICT','규정 릴리스 또는 권한이 변경되었습니다. 다시 확인해 주세요.');
 }
 export async function replay(env:Env,actor:ActorContext,key:string,hash:string) {
  const row=await env.DB.prepare('SELECT payload_hash,result FROM mutation_requests WHERE actor_id=? AND request_key=?').bind(actor.personId,key).first<{payload_hash:string;result:string}>();
@@ -49,7 +79,8 @@ export async function commitMutation(env:Env,actor:ActorContext,key:string,hash:
   if(results.some(r=>!r.success) || results[0].meta.changes!==1 || results.at(-1)?.meta.changes!==1) throw new Error('Mutation batch failed');
  } catch(error) {
   const retried=await replay(env,actor,key,hash);if(retried!==undefined) return retried;
-  if(/CONTEXT_CONFLICT|SESSION_CONFLICT/.test(String(error))) throw new ApiError(409,'CONTEXT_CONFLICT','자료·권한 또는 선택 직원이 변경되었습니다.');
+  if(/SESSION_CONFLICT/.test(String(error))) throw new ApiError(409,'SESSION_CONFLICT','선택 직원이 변경되었습니다. 다시 확인해 주세요.');
+  if(/CONTEXT_CONFLICT/.test(String(error))) throw new ApiError(409,'CONTEXT_CONFLICT','자료 또는 권한이 변경되었습니다. 다시 확인해 주세요.');
   throw error;
  }
  return result;

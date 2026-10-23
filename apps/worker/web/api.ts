@@ -40,6 +40,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     if (atGeneration !== generation) throw new DOMException('사용자가 변경되었습니다.', 'AbortError');
     if (!response.ok) {
       const error = typeof data.error === 'object' ? data.error : data;
+      if (error.code === 'SESSION_CONFLICT') window.dispatchEvent(new Event('iso-session-conflict'));
       throw new ApiError(response.status, error.code ?? data.code ?? 'REQUEST_FAILED', error.message ?? data.message ?? String(data.error ?? '요청을 처리하지 못했습니다.'), error.details ?? data);
     }
     return data as T;

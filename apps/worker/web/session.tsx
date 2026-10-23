@@ -34,7 +34,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     channel.current.onmessage = () => { cancelRequests(); setMe(null); clearDirty(); setRecent([]); setEpoch(value => value + 1); void refresh(); };
     const focus = () => { void refresh(); };
     window.addEventListener('focus', focus);
-    return () => { channel.current?.close(); window.removeEventListener('focus', focus); cancelRequests(); };
+    window.addEventListener('iso-session-conflict', focus);
+    return () => { channel.current?.close(); window.removeEventListener('focus', focus); window.removeEventListener('iso-session-conflict', focus); cancelRequests(); };
   }, [refresh,clearDirty]);
   useEffect(() => {
     if (!dirty) return;

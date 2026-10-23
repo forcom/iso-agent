@@ -1,10 +1,11 @@
 import {requestHash} from './requests';
 import type { ActorContext, KnowledgeContext, Relation, RecordUpload, RecordRevisionResult } from '../../../packages/contracts/src/index';
 import type {Artifact,Env,Revision} from '../types';
-import {all,get,getBundle,getKnowledgeContext,assertContext,replay,commitMutation,event,update} from './storage';
+import {all,get,getBundle,getKnowledgeContext,assertContext,assertExpectedContext,replay,commitMutation,event,update} from './storage';
 import {requireAuthorization} from './engine';
 import {parseMarkdown,sha256} from './markdown';
 import {ApiError,requireValue,stringList,textField} from './errors';
+import {canonical} from '../../../packages/knowledge/src/index';
 export function resourceFor(artifact:Artifact,revision:Revision) {
  return {id:artifact.id,typeIds:artifact.kind==='record'?artifact.recordTypeIds:[artifact.regulationType!],revisionId:revision.id,currentRevisionId:artifact.workingRevisionId,state:revision.state,systemIds:revision.systemIds,authorPersonId:revision.createdBy,reviewerPersonIds:revision.reviewedBy??[],requesterPersonId:revision.requesterPersonId,implementerIds:revision.implementerIds,auditedPersonIds:revision.auditedPersonIds,conditions:revision.conditions};
 }
@@ -20,7 +21,7 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  const parsed=await parseMarkdown(input.filename,input.file);const key=textField(input.requestKey,'requestKey',200);
  const hash=await requestHash(artifactId?'record.revise':'record.create',{...input,file:parsed.sha256,artifactId,expectedRevisionId});
  const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const context=await getKnowledgeContext(env);assertContext(input.expectedContext,context);
+ const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  const bundle=await getBundle(env,context);
  requireValue(!input.scope || bundle.entities.some(e=>e.id===input.scope&&e.type==='AISystem'),422,'UNKNOWN_SYSTEM','등록된 대상 시스템을 선택해 주세요.');
  const types=stringList(input.recordTypeIds,'recordTypeIds');requireValue(types.length>0,422,'RECORD_TYPE_REQUIRED','기록 유형을 선택해 주세요.');
@@ -41,7 +42,8 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  }else requireValue(!(await env.DB.prepare('SELECT id FROM artifacts WHERE document_code=?').bind(code).first()),422,'DUPLICATE_CODE','문서번호가 이미 등록되어 있습니다. 새 버전 등록을 사용해 주세요.');
  const previous=artifact?await get<Revision>(env,'revisions',artifact.workingRevisionId):undefined;
  const authorization=await requireAuthorization(env,actor,artifact?'revise':'create',artifact&&previous?resourceFor(artifact,previous):{typeIds:types,state:'new',systemIds:input.scope?[input.scope]:[],conditions:{}},context);
- if(artifact&&previous)await requireAuthorization(env,actor,'revise',{...resourceFor(artifact,previous),systemIds:input.scope?[input.scope]:[]},context);
+ const nextSystemIds=input.scope?[input.scope]:[];
+ if(artifact&&previous&&canonical(nextSystemIds)!==canonical(previous.systemIds))await requireAuthorization(env,actor,'revise',{...resourceFor(artifact,previous),systemIds:nextSystemIds},context);
  const id=artifact?.id??crypto.randomUUID(),revisionId=crypto.randomUUID(),at=new Date().toISOString();
  const state=recordTypes.some(t=>t!.approvalRequired||t!.reviewRequired||t!.approvalCondition||t!.reviewCondition||t!.applicabilityCondition)?'draft':'registered';
  const objectKey=`sources/${revisionId}/${parsed.sha256}.md`,textKey=`text/${revisionId}/${parsed.textSha256}.txt`;
@@ -54,9 +56,20 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  const add=(subjectId:string,objectId:string,type:Relation['type'],origin:Relation['origin']='explicit_metadata',reviewStatus:Relation['reviewStatus']='validated',ref=evidence)=>relations.push({id:crypto.randomUUID(),subjectId,objectId,type,origin,evidenceRefs:[ref],releaseId:context.releaseId,reviewStatus});
  add(id,revisionId,'has_revision');for(const type of types)add(id,type,'record_of_type');for(const tpl of input.templateRevisionIds)add(revisionId,tpl,'uses_template');if(previous)add(revisionId,previous.id,'supersedes');
  if(input.scope)add(revisionId,input.scope,'about_system');
- for(const known of await all<Artifact>(env,'artifacts'))if(known.id!==id){const line=lines.findIndex(line=>line.includes(known.documentCode));if(line>=0)add(revisionId,known.id,'references','reference_extraction','candidate',citation(line))}
+ for(const known of await all<Artifact>(env,'artifacts'))if(known.id!==id){const line=lines.findIndex(line=>mentionsCode(line,known.documentCode));if(line>=0)add(revisionId,known.id,'references','reference_extraction','candidate',citation(line))}
  await env.SOURCES.put(objectKey,input.file as Uint8Array<ArrayBuffer>,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
  const statements=[artifact?update(env,'artifacts',id,next):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,'record',JSON.stringify(next)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),...relations.map(r=>env.DB.prepare('INSERT INTO relations VALUES(?,?)').bind(r.id,JSON.stringify(r))),event(env,id,{kind:'record_registered',revisionId,actorId:actor.personId,context,authorization})];
  const result={artifactId:id,revisionId,status:state,context:{...context,dataRevision:context.dataRevision+1}};
- return commitMutation(env,actor,key,hash,context,result,statements);
+ return withSourceCleanup(env,revisionId,[objectKey,textKey],commitMutation(env,actor,key,hash,context,result,statements));
+}
+/** A code counts only as a whole token, so AIDU-AIP-01 is not found inside AIDU-AIP-01-F02. */
+export function mentionsCode(line:string,code:string) {
+ return new RegExp(`(?<![A-Za-z0-9-])${code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![A-Za-z0-9-])`).test(line);
+}
+/** Objects keyed by a fresh revision ID are deleted only when D1 confirms that revision was never
+ * registered: a failed commit, or a replay that returned an earlier request's revision. */
+export async function withSourceCleanup<T>(env:Env,revisionId:string,keys:string[],commit:Promise<T>):Promise<T> {
+ try{return await commit}finally{
+  try{if(!(await env.DB.prepare('SELECT 1 FROM revisions WHERE id=?').bind(revisionId).first()))await env.SOURCES.delete(keys)}catch{/* keep objects when registration state is unknown */}
+ }
 }

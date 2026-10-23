@@ -64,7 +64,7 @@ it('builds an exact-revision change before a candidate exists and rejects a supe
  await env.bindings.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(env.bundle.manifest),env.bundle.manifest.releaseId).run();
  const original=env.bundle.sources.find(source=>source.code==='TEST-PROC')!,changeId=await open('정확한 규정 버전 재구축');
  const fields={artifactId:original.artifactId,documentCode:original.code,title:original.title,kind:'procedure'};
- expect((await upload(changeId,fields,original.markdown+'\n첫 개정\n')).status).toBe(201);
+ const first=await upload(changeId,fields,original.markdown+'\n첫 개정\n');expect(first.status).toBe(201);const firstRevisionId=(await first.json() as any).revisionId;
  const built=await post(`/api/admin/regulation-changes/${changeId}/build`,'admin',{});
  expect(built.status,await built.clone().text()).toBe(200);
  const other=await open('동일 규정의 새 작업본');
@@ -74,6 +74,8 @@ it('builds an exact-revision change before a candidate exists and rejects a supe
  const working=(await get<any>(env.bindings,'artifacts',original.artifactId)).workingRevisionId;
  expect((await post(`/api/admin/regulation-changes/${changeId}/cancel`,'admin',{comment:'다른 변경 건으로 대체함'})).status).toBe(200);
  expect((await get<any>(env.bindings,'artifacts',original.artifactId)).workingRevisionId).toBe(working);
+ const cancelled=await env.bindings.DB.prepare("SELECT body FROM events WHERE json_extract(body,'$.kind')='regulation_change_cancelled' AND json_extract(body,'$.changeId')=?").bind(changeId).first<{body:string}>();
+ expect(JSON.parse(cancelled!.body).authorization.resources).toEqual([expect.objectContaining({artifactId:original.artifactId,revisionId:working,changeRevisionId:firstRevisionId})]);
 });
 it('revalidates and publishes hierarchy at the new procedure revision',async()=>{
  const base=await syntheticBundle(),markdown='# 시험 매뉴얼\n시험 절차는 이 매뉴얼을 구체화한다.\n',hash=await sha256(markdown);

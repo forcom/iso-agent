@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, mkdir, writeFile, realpath } from 'node:fs/promises';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertOracleApproved, comparePermissions, oracleDigest, refreshPermissionComparison, validatePermissionPersonnel, validatePermissions, validatePermissionSources, validatePolicyComparison, type PermissionOracle, type PermissionMapping } from './permissions';
+import { assertOracleApproved, comparePermissions, oracleDigest, refreshPermissionComparison, summarizeDifferences, validatePermissionPersonnel, validatePermissions, validatePermissionSources, validatePolicyComparison, type PermissionOracle, type PermissionMapping } from './permissions';
 
 // Issue #6 authorizes these real-source reads only in an explicitly invoked acceptance preparation.
 const args = process.argv.slice(2);
@@ -50,11 +50,11 @@ const report = {
   sourceAndBindingErrors: errors, humanAuthor: oracle.humanAuthor, humanReviewer: oracle.humanReviewer,
   unresolvedRowCount: oracle.rows.filter(row => row.status === 'unresolved').length,
   proposedRowCount: oracle.rows.filter(row => row.status === 'proposed').length,
-  executionAllowed: errors.length === 0 && gateError === null, gateError, differences,
+  executionAllowed: errors.length === 0 && gateError === null, gateError, differenceSummary: summarizeDifferences(differences), differences,
 };
 const output = resolve(root, 'output/test/acceptance/permissions-preparation.json');
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
-console.log(JSON.stringify({ report: relative(root, output), rows: oracle.rows.length, differences: differences.length, errors: errors.length, executionAllowed: report.executionAllowed }));
+console.log(JSON.stringify({ report: relative(root, output), rows: oracle.rows.length, differences: summarizeDifferences(differences), errors: errors.length, executionAllowed: report.executionAllowed }));
 // A successful preparation can still leave human review blocked; it is never an acceptance pass.
 if (errors.length) process.exitCode = 1;

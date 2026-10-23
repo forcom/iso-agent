@@ -6,7 +6,8 @@ export async function candidateId(revisionId:string,line:number,quote:string) {
  const hash=await sha256(`${revisionId}\n${line}\n${quote}`);
  return `${hash.slice(0,8)}-${hash.slice(8,12)}-8${hash.slice(13,16)}-${((parseInt(hash[16],16)&3)|8).toString(16)}${hash.slice(17,20)}-${hash.slice(20,32)}`;
 }
-const cells=(line:string)=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(value=>value.trim());
+/** Markdown table cells; an escaped `\|` stays inside its cell. */
+export const cells=(line:string)=>line.trim().replace(/^\|/,'').replace(/(?<!\\)\|$/,'').split(/(?<!\\)\|/).map(value=>value.trim().replace(/\\\|/g,'|'));
 function koreanDate(value:string):string|undefined {
  const match=value.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);if(!match)return;
  const [,year,month,day]=match,iso=`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T00:00:00+09:00`;
@@ -37,7 +38,7 @@ export async function appointmentSourceCandidates(markdown:string,revision:Revis
   const dates=[...periodText.matchAll(/\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\./g)].map(match=>koreanDate(match[0]));
   const definitePeriod=/^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*지정(?:\s*\/\s*(?:해제일 없음|\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*해제))?$/.test(periodText);
   const validFrom=dates[0],validUntil=dates.length===2&&/해제/.test(periodText)?dates[1]:undefined;
-  const blockedReason=excluded?'요약표에 지정 불요·비해당으로 기재되어 있습니다.':duplicate?'상세표의 중복 항목·열을 확인해야 합니다.':!personIds.length?'담당자 이름과 일치하는 활성 직원이 없습니다.':/후보 지정|미충족|교육 이수 후|교육 이수 확인|완료 시|확인 후|충족 시/.test([roleText,scopeText,periodText,fields.get('요구 역량·충족 증거')].join(' '))?'후보 지정 또는 미충족 조건이 있어 적용할 수 없습니다.':/지정 보류|미확정|해당 없음/.test(personText+' '+scopeText)?'지정 여부·범위가 확정되지 않았습니다.':!roleText||!scopeText||!definitePeriod||!validFrom||dates.some(date=>!date)||dates.length>2||(dates.length===2&&!validUntil)||(/해제/.test(periodText)&&!validUntil&&!/해제일 없음/.test(periodText))?'명확한 역할·범위·지정 기간이 필요합니다.':undefined;
+  const blockedReason=excluded?'요약표에 지정 불요·비해당으로 기재되어 있습니다.':duplicate?'상세표의 중복 항목·열을 확인해야 합니다.':!personIds.length?'담당자 이름과 일치하는 활성 직원이 없습니다.':/후보 지정|미충족|교육 이수 후|교육 이수 확인|완료 시|확인 후|충족 시/.test([roleText,scopeText,periodText,fields.get('요구 역량·충족 증거')].join(' '))?'후보 지정 또는 미충족 조건이 있어 적용할 수 없습니다.':/지정 보류|미확정|해당 없음/.test(personText+' '+scopeText)?'지정 여부·범위가 확정되지 않았습니다.':!roleText||!scopeText||!definitePeriod||!validFrom||dates.some(date=>!date)||dates.length>2||(dates.length===2&&!validUntil)||(/해제/.test(periodText)&&!validUntil&&!/해제일 없음/.test(periodText))?'명확한 역할·범위·지정 기간이 필요합니다.':validUntil&&validUntil<=validFrom?'해제일이 지정일 이후여야 합니다.':undefined;
   const base={sectionId:heading[1],label:heading[2],personText,roleText,scopeText,periodText,personIds,validFrom,validUntil,evidenceRefs};
   candidates.push({...base,id:await candidateId(revision.id,start+1,quote),kind:'appointment',...(blockedReason?{blockedReason}:{})});
   // shortcut: 한글 대리는 별도 검증한 지정 기록으로 적용; 명시적 위임 기간·범위가 있는 문서 지원 시 확장한다.

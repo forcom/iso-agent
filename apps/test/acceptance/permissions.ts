@@ -7,6 +7,8 @@ export interface PermissionRow {
   formCode: string; action: PermissionAction; allowedRoles: string[]; allowedPersons: PermissionPerson[]; deniedSamples: string[];
   source: PermissionSource; additionalSources: PermissionSource[]; separation: string | null; condition: string | null;
   states: string[] | null; status: 'proposed' | 'unresolved' | 'approved'; note: string;
+  /** Required by the execution gate when no denied sample can exist for the row. */
+  noDeniedSampleReason?: string;
   policyScopes?: { role: string; scopeCondition: Record<string, unknown> | null; adminRequired: boolean }[] | null;
 }
 export interface HumanConfirmation { name: string; confirmedAt: string; oracleSha256: string }
@@ -70,6 +72,7 @@ export function validatePermissions(input: unknown, requiredFormCodes?: string[]
     if (!['proposed', 'unresolved', 'approved'].includes(String(row.status)) || !nonempty(row.note)) errors.push(`Invalid review status ${key}`);
     for (const field of ['condition', 'separation']) if (row[field] !== null && !nonempty(row[field])) errors.push(`Invalid ${field} ${key}`);
     if (row.states !== null && !strings(row.states)) errors.push(`Invalid states ${key}`);
+    if (row.noDeniedSampleReason !== undefined && !nonempty(row.noDeniedSampleReason)) errors.push(`Invalid denied-sample reason ${key}`);
     if (row.policyScopes !== undefined && row.policyScopes !== null && (!Array.isArray(row.policyScopes) || row.policyScopes.some(scope => !object(scope) || !nonempty(scope.role) || (scope.scopeCondition !== null && !object(scope.scopeCondition)) || typeof scope.adminRequired !== 'boolean'))) errors.push(`Invalid policy scopes ${key}`);
     if (!Array.isArray(row.additionalSources)) { errors.push(`Invalid sources ${key}`); continue; }
     for (const source of [row.source, ...row.additionalSources]) {
@@ -90,6 +93,8 @@ export function assertOracleApproved(input: unknown, requiredFormCodes?: string[
   if (!confirmation(oracle.humanAuthor) || !confirmation(oracle.humanReviewer)) throw Error('Two human confirmations of current oracle content required');
   if (oracle.humanAuthor!.name.trim().toLocaleLowerCase() === oracle.humanReviewer!.name.trim().toLocaleLowerCase()) throw Error('Human author and reviewer must be distinct');
   if (oracle.rows.some(row => row.status !== 'approved')) throw Error('Unresolved permission rows');
+  // AT-03/07 judge refusals against these samples; an empty list is not "everyone allowed".
+  if (oracle.rows.some(row => !row.deniedSamples.length && !nonempty(row.noDeniedSampleReason))) throw Error('Each row needs denied samples or a stated reason');
   if (!oracle.comparison || !shaPattern.test(oracle.comparison.policiesSha256) || oracle.comparison.oracleSha256 !== oracleDigest(oracle) || !Number.isFinite(Date.parse(oracle.comparison.comparedAt)) || !Array.isArray(oracle.comparison.differences)) throw Error('Current policy comparison required');
   if (oracle.comparison.differences.some(diff => !diff.resolution || !nonempty(diff.resolution.reviewer) || !nonempty(diff.resolution.reason) || !Number.isFinite(Date.parse(diff.resolution.resolvedAt)))) throw Error('Unresolved policy differences');
 }
@@ -165,4 +170,14 @@ export function validatePermissionPersonnel(oracle: PermissionOracle, personnel:
     if (person?.name !== actor.name || (actor.installedRole && actor.installedRole !== binding) || !person?.roles.some(role => role.name === binding && role.scope === actor.scope)) errors.push(`Invalid personnel binding ${row.formCode}:${row.action}:${actor.personaId}`);
   }
   return errors;
+}
+
+/** An unspecified facet (oracle value null) is a gap in the oracle, not a disagreement with policy. */
+export function summarizeDifferences(differences: PermissionDifference[]) {
+  const summary = { total: differences.length, unspecified: 0, mismatch: 0, byFacet: {} as Record<string, { unspecified: number; mismatch: number }> };
+  for (const diff of differences) {
+    const kind = diff.expected === null ? 'unspecified' : 'mismatch';
+    summary[kind]++; (summary.byFacet[diff.facet] ??= { unspecified: 0, mismatch: 0 })[kind]++;
+  }
+  return summary;
 }

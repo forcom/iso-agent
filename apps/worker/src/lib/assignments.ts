@@ -5,7 +5,7 @@ import { all, assertContext,assertExpectedContext, commitMutation, event, get, g
 import { readRevision, resourceFor } from './artifacts';
 import { requireAuthorization, snapshot } from './engine';
 import { ApiError, requireValue, textField } from './errors';
-import { appointmentSourceCandidates, candidateId } from './appointment-source';
+import { appointmentSourceCandidates, candidateId, cells } from './appointment-source';
 import { requestHash } from './requests';
 
 const requiredColumns = ['personId', 'roleId', 'validFrom', 'validUntil', 'scopeKind', 'scopeIds'];
@@ -16,7 +16,6 @@ function timestamp(value:string) {
  requireValue(match&&Number.isFinite(parsed)&&Number(match[2])>=1&&Number(match[2])<=12&&Number(match[3])>=1&&Number(match[3])<=new Date(Date.UTC(Number(match[1]),Number(match[2]),0)).getUTCDate(),422,'INVALID_ASSIGNMENT_PERIOD','기간은 유효한 날짜와 시간대를 포함한 ISO 시각이어야 합니다.');
  return parsed;
 }
-function cells(line:string) { return line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim()); }
 
 
 async function appointmentCandidates(env:Env,revisionId:string,context:KnowledgeContext) {
@@ -27,6 +26,8 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
  requireValue(decision,422,'APPOINTMENT_APPROVAL_MISSING','동일 원본 버전의 승인 결정 근거가 필요합니다.');
  const {markdown}=await readRevision(env,revision.id);
  const [persons,artifacts]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts')]);
+ const sourceCandidates=await appointmentSourceCandidates(markdown,revision,persons);
+ const machineAssignments=async()=>{
  let effectiveAssignments:RoleAssignment[]|undefined;
  const assignments:RoleAssignment[]=[];let header:string[]|undefined;let fence:string|undefined;
  const lines=markdown.split('\n');
@@ -77,12 +78,16 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
   assignments.push(assignment);
  }
  const adminPersons=assignments.filter(item=>item.grantsAdmin!==undefined).map(item=>item.personId);requireValue(new Set(adminPersons).size===adminPersons.length,422,'DUPLICATE_ADMIN_DESIGNATION','한 원문에서 직원별 관리자 지정은 한 번만 명시해 주세요.');
- const sourceCandidates=await appointmentSourceCandidates(markdown,revision,persons);
+  return assignments;
+ };
+ // A broken machine table must not hide the Korean candidates of the same record; the machine path still reports it.
+ let assignments:RoleAssignment[]=[],assignmentsError:ApiError|undefined;
+ try{assignments=await machineAssignments()}catch(error){if(!(error instanceof ApiError)||!sourceCandidates.length)throw error;assignmentsError=error}
  requireValue(assignments.length>0||sourceCandidates.length>0,422,'ASSIGNMENT_TABLE_REQUIRED',`승인 원문에 ${requiredColumns.join('/')} 열의 역할 지정 표가 필요합니다.`);
- return {artifact,revision,assignments,sourceCandidates,decision};
+ return {artifact,revision,assignments,assignmentsError,sourceCandidates,decision};
 }
 
-async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeContext,revision:Revision,decisionId:string,candidates:AppointmentSourceCandidate[],mappings:AssignmentMapping[]) {
+async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeContext,revision:Revision,decisionId:string,candidates:AppointmentSourceCandidate[],mappings:AssignmentMapping[],requestKey:string) {
  const [persons,artifacts,existing,bundle]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts'),all<RoleAssignment>(env,'assignments'),getBundle(env,context)]);
  const result:RoleAssignment[]=[],seen=new Set<string>();
  const sameScope=(a:RoleAssignment['scope'],b:RoleAssignment['scope'])=>a.kind===b.kind&&canonical([...a.ids].sort())===canonical([...b.ids].sort());
@@ -107,7 +112,8 @@ async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeCon
    const replacesAssignmentId=replacements[roleId];
    if(replacesAssignmentId){const old=existing.find(item=>item.id===replacesAssignmentId);requireValue(old&&old.status==='active'&&old.personId===mapping.personId&&old.roleId===roleId&&!old.grantsAdmin,422,'REPLACEMENT_TARGET_MISMATCH','같은 직원·역할의 활성 지정만 교체할 수 있으며 관리자 지정은 이 경로에서 교체할 수 없습니다.');}
    requireValue(!existing.some(item=>item.status==='active'&&item.personId===mapping.personId&&item.roleId===roleId&&sameScope(item.scope,scope)&&item.id!==replacesAssignmentId),409,'ASSIGNMENT_DUPLICATE_ACTIVE','이미 유효한 지정입니다. 생략하거나 명시적으로 기존 지정을 교체해 주세요.');
-   result.push({id:await candidateId(revision.id,candidate.evidenceRefs[0].lineStart,canonical([candidate.id,identity,mapping.validFrom,mapping.validUntil??null])),personId:mapping.personId,roleId,scope:{kind:scope.kind,ids:[...scope.ids].sort()},validFrom:mapping.validFrom,...(mapping.validUntil?{validUntil:mapping.validUntil}:{}),approvedRevisionId:revision.id,approvalDecisionId:decisionId,evidenceRefs:candidate.evidenceRefs,status:'active',...(replacesAssignmentId?{replacesAssignmentId}:{}),adminMapping:{candidateId:candidate.id,actorId:actor.personId,at:new Date().toISOString(),reason}});
+   // The request key keeps a revoked mapping re-appliable by a new request; active duplicates are refused above.
+   result.push({id:await candidateId(revision.id,candidate.evidenceRefs[0].lineStart,canonical([candidate.id,identity,mapping.validFrom,mapping.validUntil??null,requestKey])),personId:mapping.personId,roleId,scope:{kind:scope.kind,ids:[...scope.ids].sort()},validFrom:mapping.validFrom,...(mapping.validUntil?{validUntil:mapping.validUntil}:{}),approvedRevisionId:revision.id,approvalDecisionId:decisionId,evidenceRefs:candidate.evidenceRefs,status:'active',...(replacesAssignmentId?{replacesAssignmentId}:{}),adminMapping:{candidateId:candidate.id,actorId:actor.personId,at:new Date().toISOString(),reason}});
   }
  }
  return result;
@@ -121,7 +127,7 @@ export async function listRoleAssignments(env:Env,actor:ActorContext) {
  for(const artifact of artifacts.filter(a=>a.kind==='record'&&a.recordTypeIds.some(id=>bundle.recordTypes.some(type=>type.id===id&&type.roleAssignment===true)))){
   const revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);
   if(revision.state!=='approved')continue;
-  try{const candidate=await appointmentCandidates(env,revision.id,context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates})}
+  try{const candidate=await appointmentCandidates(env,revision.id,context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates,...(candidate.assignmentsError?{error:candidate.assignmentsError.message}:{})})}
   catch(error){if(!(error instanceof ApiError))throw error;candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:[],error:error.message})}
  }
  assertContext(context,await getKnowledgeContext(env));return {items,candidates,context,persons:await all<Person>(env,'persons'),roles:bundle.roles,systems:bundle.entities.filter(entity=>entity.type==='AISystem'),resources:artifacts.map(({id,title})=>({id,title}))};
@@ -132,8 +138,9 @@ export async function applyRoleAssignment(env:Env,actor:ActorContext,input:Assig
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('assignment.apply',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  requireValue((Array.isArray(input.assignments)&&input.assignments.length>0&&input.mappedAssignments===undefined)||(Array.isArray(input.mappedAssignments)&&input.mappedAssignments.length>0&&input.assignments===undefined),422,'ASSIGNMENTS_REQUIRED','기계용 후보 또는 한글 대조값 중 하나를 선택해 주세요.');
- const {artifact,revision,assignments,sourceCandidates,decision}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
- const selected=input.mappedAssignments?await mappedAssignments(env,actor,context,revision,decision.id,sourceCandidates,input.mappedAssignments):input.assignments!;
+ const {artifact,revision,assignments,assignmentsError,sourceCandidates,decision}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
+ if(!input.mappedAssignments&&assignmentsError)throw assignmentsError;
+ const selected=input.mappedAssignments?await mappedAssignments(env,actor,context,revision,decision.id,sourceCandidates,input.mappedAssignments,key):input.assignments!;
  if(!input.mappedAssignments)requireValue(new Set(input.assignments!.map(item=>item.id)).size===input.assignments!.length&&input.assignments!.every(item=>assignments.some(candidate=>canonical(candidate)===canonical(item))),422,'ASSIGNMENT_CANDIDATE_MISMATCH','적용 값이 승인된 원문의 지정 후보와 일치하지 않습니다.');
  const authorization=await requireAuthorization(env,actor,'apply_assignment',resourceFor(artifact,revision),context);
  const existing=await all<RoleAssignment>(env,'assignments');requireValue(selected.every(item=>!existing.some(old=>old.id===item.id)),409,'ASSIGNMENT_ALREADY_APPLIED','이미 적용한 지정입니다.');

@@ -34,13 +34,16 @@ it('keeps large build/decision/list/detail responses intact while change and rep
  const upload=await app.request(`${path}/files`,{method:'POST',headers:{cookie:headers.cookie,'X-Session-Version':'1'},body:form},env.bindings);expect(upload.status).toBe(201);
  const input={requestKey:'large-build',expectedContext:await getKnowledgeContext(env.bindings)},built=await post(`${path}/build`,input);expect(built.status,await built.clone().text()).toBe(200);const result=await built.json() as any;
  expect(result.candidate.sources.find((source:any)=>source.artifactId==='test-reg').markdown).toContain(large);
- expect(Buffer.byteLength(JSON.stringify(result.change.diff))).toBeGreaterThan(2*1024*1024);
  const stored=await get<any>(env.bindings,'regulation_changes',changeId);expect(Buffer.byteLength(JSON.stringify(stored))).toBeLessThan(1024*1024);expect(stored.diff.__r2Json.key).toMatch(/^regulation-diffs\/[a-f0-9]{64}\.json$/);
- expect((await (await app.request(path,{headers},env.bindings)).json() as any).change.diff).toEqual(result.change.diff);
- expect((await (await app.request('/api/admin/regulation-changes',{headers},env.bindings)).json() as any).items.find((change:any)=>change.id===changeId).diff).toEqual(result.change.diff);
+ // Mutation results carry the stored pointer, so a decision never re-stores the diff bytes.
+ expect(result.change.diff).toEqual(stored.diff);
+ const detailDiff=(await (await app.request(path,{headers},env.bindings)).json() as any).change.diff;
+ expect(Buffer.byteLength(JSON.stringify(detailDiff))).toBeGreaterThan(2*1024*1024);
+ expect((await (await app.request('/api/admin/regulation-changes',{headers},env.bindings)).json() as any).items.find((change:any)=>change.id===changeId)).not.toHaveProperty('diff');
  const validated=await post(`${path}/decisions`,{decision:'validate_knowledge',candidateHash:result.change.candidateHash,comment:'Synthetic exact large source checked'});expect(validated.status,await validated.clone().text()).toBe(200);
- expect((await validated.json() as any).change.diff).toEqual(result.change.diff);
+ expect((await validated.json() as any).change.diff).toEqual(stored.diff);
  const repeated=await post(`${path}/build`,input);expect(repeated.status).toBe(200);expect(await repeated.json()).toEqual(result);
  const rows=await env.bindings.DB.prepare('SELECT result FROM mutation_requests').all<{result:string}>();expect(rows.results.every(row=>Buffer.byteLength(row.result)<1024*1024)).toBe(true);
  await env.bindings.SOURCES.put(stored.diff.__r2Json.key,'tampered');expect((await app.request(path,{headers},env.bindings)).status).toBe(503);
+ expect((await app.request('/api/admin/regulation-changes',{headers},env.bindings)).status).toBe(200);
 },60_000);

@@ -118,9 +118,10 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
 function guards(env:Env,current:{tables:Tables;schema:SchemaRow[]}){
  const statements:D1PreparedStatement[]=[];
  const guard=(condition:string,params:unknown[])=>statements.push(env.DB.prepare(`INSERT INTO context SELECT * FROM context WHERE id=1 AND (${condition})`).bind(...params));
- for(const table of tables){const names=columns[table];guard(`(SELECT COUNT(*) FROM ${table})<>?`,[current.tables[table].length]);const size=Math.floor(100/names.length);
-  for(let i=0;i<current.tables[table].length;i+=size){const rows=current.tables[table].slice(i,i+size);guard(rows.map(()=>`NOT EXISTS(SELECT 1 FROM ${table} WHERE ${names.map(name=>`${name} IS ?`).join(' AND ')})`).join(' OR '),rows.flatMap(row=>names.map(name=>row[name])))}
- }
+ // Every application write except session selection advances the context row; per-table counts catch other writers.
+ // ponytail: count+context fence, not per-row content; add a row-hash column if non-app writers must be fenced exactly.
+ const context=current.tables.context[0];guard(`NOT EXISTS(SELECT 1 FROM context WHERE ${columns.context.map(name=>`${name} IS ?`).join(' AND ')})`,columns.context.map(name=>context[name]));
+ for(const table of tables)guard(`(SELECT COUNT(*) FROM ${table})<>?`,[current.tables[table].length]);
  guard("(SELECT COUNT(*) FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations')<>?",[current.schema.length]);
  for(const row of current.schema)guard('NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type=? AND name=? AND sql=?)',[row.type,row.name,row.sql]);return statements;
 }
@@ -136,7 +137,7 @@ export async function applyMaintenance(env:Env,target:MaintenanceTarget,baseline
   const recomputed=await planMaintenance(env,target,baseline,plan.operation);check(canonical(recomputed.deleteRows)===canonical(plan.deleteRows)&&canonical(recomputed.replaceRows)===canonical(plan.replaceRows)&&canonical(recomputed.deleteObjects)===canonical(plan.deleteObjects)&&recomputed.afterDatabaseHash===plan.afterDatabaseHash,'Maintenance plan content changed');
   await verifyPreservedObjects(env,plan.preserveObjects);const statements=guards(env,current),immutable=current.schema.filter(row=>row.type==='trigger'&&/_immutable_(update|delete)$/.test(row.name));
   for(const trigger of immutable)statements.push(env.DB.prepare(`DROP TRIGGER ${trigger.name}`));
-  for(const table of [...tables].reverse())if(table==='mutation_requests')statements.push(env.DB.prepare('DELETE FROM mutation_requests'));else for(let i=0;i<plan.deleteRows[table].length;i+=100){const ids=plan.deleteRows[table].slice(i,i+100);statements.push(env.DB.prepare(`DELETE FROM ${table} WHERE id IN (${ids.map(()=>'?').join(',')})`).bind(...ids))}
+  for(const table of [...tables].reverse())if(table==='mutation_requests'||table==='sessions')statements.push(env.DB.prepare(`DELETE FROM ${table}`));else for(let i=0;i<plan.deleteRows[table].length;i+=100){const ids=plan.deleteRows[table].slice(i,i+100);statements.push(env.DB.prepare(`DELETE FROM ${table} WHERE id IN (${ids.map(()=>'?').join(',')})`).bind(...ids))}
   for(const table of tables)for(const row of plan.replaceRows[table]){if(table==='assignments')statements.push(...insertRows(env,table,[row]));else{const names=columns[table].filter(name=>name!=='id');statements.push(env.DB.prepare(`UPDATE ${table} SET ${names.map(name=>`${name}=?`).join(',')} WHERE id=?`).bind(...names.map(name=>row[name]),row.id))}}
   const event={id:markerId,artifactId:null,kind:plan.operation==='restore-release'?'release_restored':'business_reset',at:plan.createdAt,planHash:hash,baselineHash:baseline.hash,target,context:plan.replaceRows.context[0]};statements.push(env.DB.prepare('INSERT INTO events VALUES(?,?,?)').bind(markerId,null,JSON.stringify(event)));
   for(const trigger of immutable)statements.push(env.DB.prepare(trigger.sql));check(statements.length<1000,'Maintenance exceeds single-transaction D1 query budget');

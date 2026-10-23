@@ -176,4 +176,28 @@ describe('Korean appointment reconciliation',()=>{
   expect(result.assignmentIds).toHaveLength(1);
   expect(await env.bindings.DB.prepare("SELECT json_extract(body,'$.status') AS status FROM assignments WHERE id='test-assignment-reviewer'").first('status')).toBe('revoked');
  });
+ it('blocks a release date on or before the appointment date and keeps escaped pipes inside a cell',async()=>{
+  const original=await loadFixture('korean-appointment.md');
+  let env=await appointment(undefined,[],original.replace('2026. 4. 27. 지정 / 해제일 없음','2026. 4. 27. 지정 / 2026. 4. 1. 해제'));
+  expect(((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates[0].blockedReason).toMatch(/해제일/);
+  env=await appointment(undefined,[],original.replace('전사 합성 기록의 검토·승인','전사 합성 기록의 검토\\|승인'));
+  const candidate=((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates[0];
+  expect(candidate.blockedReason).toBeUndefined();expect(candidate.scopeText).toBe('전사 합성 기록의 검토|승인');
+ });
+ it('keeps Korean candidates usable when the same record has an invalid machine table',async()=>{
+  const source=`${await loadFixture('korean-appointment.md')}\n\n| personId | roleId | validFrom | validUntil | scopeKind | scopeIds |\n| --- | --- | --- | --- | --- | --- |\n| missing | approver | 2026-01-01T00:00:00Z | 2027-01-01T00:00:00Z | all | |\n`;
+  const env=await appointment(undefined,[],source),view=await api.listRoleAssignments(env.bindings,env.actor),listed=view.candidates[0] as any;
+  expect(listed.error).toBeTruthy();expect(listed.sourceCandidates).toHaveLength(4);
+  await expect(api.applyRoleAssignment(env.bindings,env.actor,{revisionId:env.revision.id,assignments:[{id:'any'} as any],requestKey:'machine',expectedContext:env.context})).rejects.toMatchObject({code:'UNKNOWN_ASSIGNMENT_PERSON'});
+  const primary=listed.sourceCandidates.find((c:any)=>c.sectionId==='R-01'&&c.kind==='appointment');
+  expect((await api.applyRoleAssignment(env.bindings,env.actor,{revisionId:env.revision.id,mappedAssignments:[mapping(primary.id)],requestKey:'mapped-beside-machine',expectedContext:env.context})).assignmentIds).toHaveLength(1);
+ });
+ it('re-applies a mapping by a new request after its earlier assignment was revoked',async()=>{
+  const env=await korean(),candidate=((await api.listRoleAssignments(env.bindings,env.actor)).candidates[0] as any).sourceCandidates[0];
+  const input:any={revisionId:env.revision.id,mappedAssignments:[mapping(candidate.id)],requestKey:'first',expectedContext:env.context};
+  const first=await api.applyRoleAssignment(env.bindings,env.actor,input);
+  await env.bindings.DB.prepare("UPDATE assignments SET body=json_set(body,'$.status','revoked') WHERE id=?").bind(first.assignmentIds[0]).run();
+  const second=await api.applyRoleAssignment(env.bindings,env.actor,{...input,requestKey:'second',expectedContext:first.context});
+  expect(second.assignmentIds[0]).not.toBe(first.assignmentIds[0]);
+ });
 });

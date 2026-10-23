@@ -24,7 +24,7 @@ export async function cancelRegulationChange(env:Env,actor:ActorContext,changeId
  for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id),artifact=await get<Artifact>(env,'artifacts',r.artifactId);if(artifact.workingRevisionId===id&&artifact.effectiveRevisionId)statements.push(update(env,'artifacts',artifact.id,{...artifact,workingRevisionId:artifact.effectiveRevisionId}))}
  const next:Change={...change,state:'cancelled'};
  statements.push(update(env,'regulation_changes',changeId,next),event(env,null,{kind:'regulation_change_cancelled',changeId,reason,actorId:actor.personId,authorization,context}));
- return commitMutation(env,actor,key,hash,context,{change:await regulationChangeView(env,next)},statements);
+ return commitMutation(env,actor,key,hash,context,{change:next},statements);
 }
 /** Moves a change left behind by another publication onto the current release. Its candidate must be rebuilt and decided again. */
 export async function rebaseRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
@@ -88,12 +88,14 @@ function diffItems<T extends object>(before:T[],after:T[],key:(item:T)=>string,i
 }
 async function changeAuthorization(env:Env,actor:ActorContext,change:Change,action:'review'|'approve'|'publish'|'revise'|'cancel',context:KnowledgeContext){
  if(action==='revise'||action==='cancel'){
-  const resources=[];
-  for(const id of change.revisionIds){let revision=await get<Revision>(env,'revisions',id);const artifact=await get<Artifact>(env,'artifacts',revision.artifactId);if(action==='cancel')revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);else requireValue(artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','다른 변경 건이 규정 작업본을 변경했습니다.');resources.push({...resourceFor(artifact,revision),state:'draft'})}
+  const resources:Array<ReturnType<typeof resourceFor>&{changeRevisionId?:string}>=[];
+  for(const id of change.revisionIds){let revision=await get<Revision>(env,'revisions',id);const artifact=await get<Artifact>(env,'artifacts',revision.artifactId);
+   // Exact-revision policies only cover the current working file, so cancelling a superseded change is judged there; the audit keeps both IDs.
+   if(action==='cancel')revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);else requireValue(artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','다른 변경 건이 규정 작업본을 변경했습니다.');resources.push({...resourceFor(artifact,revision),changeRevisionId:id,state:'draft'})}
   for(const id of change.withdrawnArtifactIds){const artifact=await get<Artifact>(env,'artifacts',id),revisionId=action==='cancel'?artifact.workingRevisionId:artifact.effectiveRevisionId;requireValue(revisionId,409,'WITHDRAWAL_CONFLICT','철회 대상이 시행 중이 아닙니다.');const revision=await get<Revision>(env,'revisions',revisionId);resources.push({...resourceFor(artifact,revision),currentRevisionId:revisionId,state:'draft'})}
   requireValue(resources.length>0,422,'CHANGE_EMPTY','변경 파일이 없습니다.');
-  const decisions=await Promise.all(resources.map(resource=>requireAuthorization(env,actor,'revise',resource,context)));
-  return {...decisions[0],policyIds:[...new Set(decisions.flatMap(decision=>decision.policyIds))],assignmentIds:[...new Set(decisions.flatMap(decision=>decision.assignmentIds??[]))],evidenceRefs:decisions.flatMap(decision=>decision.evidenceRefs)};
+  const decisions=await Promise.all(resources.map(({changeRevisionId:_change,...resource})=>requireAuthorization(env,actor,'revise',resource,context)));
+  return {...decisions[0],resources:resources.map(({changeRevisionId,...resource},index)=>({artifactId:resource.id,revisionId:resource.revisionId,...(changeRevisionId?{changeRevisionId}:{}),policyIds:decisions[index].policyIds,assignmentIds:decisions[index].assignmentIds??[]})),policyIds:[...new Set(decisions.flatMap(decision=>decision.policyIds))],assignmentIds:[...new Set(decisions.flatMap(decision=>decision.assignmentIds??[]))],evidenceRefs:decisions.flatMap(decision=>decision.evidenceRefs)};
  }
  const kinds=[];for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id);kinds.push((await get<Artifact>(env,'artifacts',r.artifactId)).regulationType!)}
  for(const id of change.withdrawnArtifactIds)kinds.push((await get<Artifact>(env,'artifacts',id)).regulationType!);
@@ -108,7 +110,7 @@ export async function withdrawRegulation(env:Env,actor:ActorContext,changeId:str
  const authorization=await requireAuthorization(env,actor,'revise',{id:artifact.id,typeIds:[artifact.regulationType!],revisionId:artifact.effectiveRevisionId,currentRevisionId:artifact.effectiveRevisionId,state:'draft'},context);
  const remaining=[];for(const id of change.revisionIds)if((await get<Revision>(env,'revisions',id)).artifactId!==artifact.id)remaining.push(id);
  const next:Change={...change,state:'draft',revisionIds:remaining,withdrawnArtifactIds:[...new Set([...change.withdrawnArtifactIds,artifact.id])],candidateReleaseId:undefined,candidateHash:undefined,knowledgeValidation:undefined};
- return commitMutation(env,actor,key,hash,context,{change:await regulationChangeView(env,next)},[update(env,'regulation_changes',changeId,next),event(env,artifact.id,{kind:'regulation_withdrawal_proposed',changeId,revisionId:artifact.effectiveRevisionId,reason:textField(input.reason,'철회 사유',10000),actorId:actor.personId,authorization,context})]);
+ return commitMutation(env,actor,key,hash,context,{change:next},[update(env,'regulation_changes',changeId,next),event(env,artifact.id,{kind:'regulation_withdrawal_proposed',changeId,revisionId:artifact.effectiveRevisionId,reason:textField(input.reason,'철회 사유',10000),actorId:actor.personId,authorization,context})]);
 }
 export async function createRegulationChange(env:Env,actor:ActorContext,input:any){
  requireAdmin(actor);const context=await getKnowledgeContext(env);const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.create',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;assertExpectedContext(input.expectedContext,context);
@@ -140,7 +142,7 @@ export async function addRegulationFile(env:Env,actor:ActorContext,changeId:stri
  const next:Change={...change,state:'draft',revisionIds:[...priorRevisions.filter(r=>r.artifactId!==id).map(r=>r.id),revisionId],withdrawnArtifactIds:change.withdrawnArtifactIds.filter(artifactId=>artifactId!==id),candidateHash:undefined,candidateReleaseId:undefined,knowledgeValidation:undefined};
  return withSourceCleanup(env,revisionId,[objectKey,textKey],async()=>{
   await env.SOURCES.put(objectKey,input.file,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
-  return commitMutation(env,actor,key,hash,context,{artifactId:id,revisionId,change:await regulationChangeView(env,next)},[old?update(env,'artifacts',id,artifact):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,artifact.kind,JSON.stringify(artifact)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),update(env,'regulation_changes',changeId,next),event(env,id,{kind:'regulation_working_revision',changeId,revisionId,actorId:actor.personId,authorization,context})]);
+  return commitMutation(env,actor,key,hash,context,{artifactId:id,revisionId,change:next},[old?update(env,'artifacts',id,artifact):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,artifact.kind,JSON.stringify(artifact)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),update(env,'regulation_changes',changeId,next),event(env,id,{kind:'regulation_working_revision',changeId,revisionId,actorId:actor.personId,authorization,context})]);
  });
 }
 export async function buildRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
@@ -178,7 +180,7 @@ export async function buildRegulationChange(env:Env,actor:ActorContext,changeId:
   comparisonNote:'릴리스 식별자만 바뀐 항목은 변경으로 세지 않습니다. 원문·인용·조건 등 실제 값의 차이와 이전·이후 전체 값을 보존합니다.',
  };
  const next:Change={...change,state:'built',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation,diff:await storeLargeJson(env,diff,'regulation-diffs'),knowledgeValidation:undefined};
- const result={change:{...next,diff},candidate:bundle,validation};return commitMutation(env,actor,key,hash,context,result,[await writeCandidate(env,bundle),update(env,'regulation_changes',changeId,next),event(env,null,{kind:'knowledge_candidate_built',changeId,actorId:actor.personId,candidateHash:next.candidateHash,context})]);
+ const result={change:next,candidate:bundle,validation};return commitMutation(env,actor,key,hash,context,result,[await writeCandidate(env,bundle),update(env,'regulation_changes',changeId,next),event(env,null,{kind:'knowledge_candidate_built',changeId,actorId:actor.personId,candidateHash:next.candidateHash,context})]);
 }
 export async function decideRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.decide',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
@@ -200,7 +202,7 @@ export async function decideRegulationChange(env:Env,actor:ActorContext,changeId
  }
  const id=crypto.randomUUID(),decision={id,changeId,decision:input.decision,comment:textField(input.comment,'결정 의견',10000),candidateHash:next.candidateHash,actorId:actor.personId,at:new Date().toISOString(),context,authorization};
  statements.push(env.DB.prepare('INSERT INTO decisions VALUES(?,?,?)').bind(id,next.candidateHash,JSON.stringify(decision)),update(env,'regulation_changes',changeId,next),event(env,null,{kind:input.decision,changeId,decisionId:id,actorId:actor.personId,context}));
- return commitMutation(env,actor,key,hash,context,{change:await regulationChangeView(env,next),candidate:bundle,decision},statements);
+ return commitMutation(env,actor,key,hash,context,{change:next,candidate:bundle,decision},statements);
 }
 export async function publishRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.publish',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;

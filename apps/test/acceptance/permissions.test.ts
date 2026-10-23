@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { assertOracleApproved, comparePermissions, oracleDigest, refreshPermissionComparison, validatePermissionPersonnel, validatePermissionSources, validatePermissions, validatePolicyComparison, type PermissionOracle } from './permissions';
+import { assertOracleApproved, comparePermissions, oracleDigest, refreshPermissionComparison, summarizeDifferences, validatePermissionPersonnel, validatePermissionSources, validatePermissions, validatePolicyComparison, type PermissionOracle } from './permissions';
 
 const text = '# 3 책임\n\n## 3.1 검토자\n검토자는 합성 기록을 검토한다.\n\n## 3.2 승인자\n승인자는 합성 기록을 승인한다.\n';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -51,6 +51,16 @@ describe('independent acceptance permissions', () => {
     approve(oracle);
     oracle.comparison!.differences.push({ id: 'one', formCode: 'SYNTHETIC-F01', action: 'review', facet: 'roles', expected: ['검토자'], actual: [], resolution: null });
     expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/unresolved/i);
+  });
+  it('requires denied samples or a stated reason before execution and separates oracle gaps from policy mismatches', () => {
+    const oracle = fixture();
+    oracle.rows[0].deniedSamples = [];approve(oracle);
+    expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/denied samples/i);
+    oracle.rows[0].noDeniedSampleReason = '모든 임직원이 작성할 수 있어 거부 대상이 없음';approve(oracle);
+    expect(() => assertOracleApproved(oracle, oracle.formCodes)).not.toThrow();
+    const base = { formCode: 'SYNTHETIC-F01', action: 'review' as const, actual: [], resolution: null };
+    expect(summarizeDifferences([{ ...base, id: 'a', facet: 'scope', expected: null }, { ...base, id: 'b', facet: 'roles', expected: ['검토자'] }, { ...base, id: 'c', facet: 'roles', expected: null }]))
+      .toEqual({ total: 3, unspecified: 2, mismatch: 1, byFacet: { scope: { unspecified: 1, mismatch: 0 }, roles: { unspecified: 1, mismatch: 1 } } });
   });
   it('verifies quoted words inside the cited clause and detects file drift without reading operational data in regression', async () => {
     const oracle = fixture();

@@ -18,7 +18,7 @@ pnpm --filter @iso-agent/test exec tsx acceptance/run.ts --prepare --target loca
 
 준비 파일은 원본 SHA-256·information_id·form_id·template_version, 현재 설치된 기록 유형·양식 버전·직원 ID와 P-6 행위자 후보를 담는다. `issues`의 대상 시스템, 필요한 검토자·승인자, 회람 수신자, 직무 분리, 조건 증거를 사람이 확인한다. 조건은 `confirmations`에 `field/value/personId/lineStart/lineEnd/quote/comment`를 기록한다. `quote`는 해당 원본 줄과 정확히 같아야 한다. 불명확한 값을 자동으로 채우지 않는다. 모든 `issues`가 해결되어야 실행할 수 있다.
 
-P-6의 서로 다른 실제 작성자·검토자 확인, 전 행 승인, 모든 정책 차이의 판정이 필요하다. 원문·직원 입력·정책 파일 해시와 비교 결과를 실행 전에 다시 검증한다. AI가 작성한 현재 초안만으로는 실행할 수 없다. P-6 파일이 바뀌면 인벤토리를 다시 준비하고 검토한다.
+P-6의 서로 다른 실제 작성자·검토자 확인, 전 행 승인, 모든 정책 차이의 판정이 필요하다. 각 행에는 거부 표본(`deniedSamples`)이 있어야 하며, 거부 대상이 있을 수 없는 행은 `noDeniedSampleReason`에 사유를 적는다. 빈 배열은 전원 허용을 뜻하지 않는다. 준비 보고서의 `differenceSummary`는 정책 차이를 오라클이 해당 측면을 정하지 않은 `unspecified`와 값이 어긋난 `mismatch`로 나눈다. 두 종류 모두 판정해야 실행할 수 있다. 원문·직원 입력·정책 파일 해시와 비교 결과를 실행 전에 다시 검증한다. AI가 작성한 현재 초안만으로는 실행할 수 없다. P-6 파일이 바뀌면 인벤토리를 다시 준비하고 검토한다.
 
 로컬·원격 모두 실제 로컬 복제본의 P-3 초기화 예행 성공 보고서를 `prerequisites.resetRehearsalReport`의 `{path,sha256}`로 연결해야 첫 쓰기가 허용된다. 원격에는 아래 추가 선행 증거도 필요하다.
 

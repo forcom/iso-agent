@@ -5,10 +5,14 @@ import react from '@vitejs/plugin-react';
 import app from '../../worker/src/index';
 import { createTestEnvironment, repoRoot } from '../support/environment';
 import { startTestEngine } from '../support/engine';
+import {installAppointment} from '../support/appointment';
+import {loadFixture} from '../support/fixtures';
 
 // The browser harness only uses synthetic data and isolated local D1/R2 state.
 const stopEngine = await startTestEngine();
 const environment = await createTestEnvironment();
+await environment.bindings.DB.prepare('INSERT INTO persons VALUES(?,?)').bind('appointment-reader',JSON.stringify({id:'appointment-reader',name:'시험 appointment-reader',active:true,isAdmin:false})).run();
+await installAppointment(environment,(await loadFixture('korean-appointment.md')).replaceAll('시험 reader','시험 appointment-reader'));
 const vite = await createViteServer({
   configFile: false, envDir: false, root: resolve(repoRoot, 'apps/worker'),
   plugins: [react()], cacheDir: resolve(repoRoot, 'output/test/vite-cache'),

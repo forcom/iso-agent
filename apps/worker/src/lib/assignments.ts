@@ -1,11 +1,11 @@
-import type { ActorContext, AssignmentApplyInput, AssignmentResult, KnowledgeContext, Person, RoleAssignment } from '../../../packages/contracts/src/index';
+import type { ActorContext, AppointmentSourceCandidate, AssignmentApplyInput, AssignmentMapping, AssignmentResult, KnowledgeContext, Person, RoleAssignment } from '../../../packages/contracts/src/index';
 import { canonical } from '../../../packages/knowledge/src/index';
 import type { Artifact, Env, Revision } from '../types';
 import { all, assertContext,assertExpectedContext, commitMutation, event, get, getBundle, getKnowledgeContext, replay, update } from './storage';
 import { readRevision, resourceFor } from './artifacts';
 import { requireAuthorization, snapshot } from './engine';
 import { ApiError, requireValue, textField } from './errors';
-import { sha256 } from './markdown';
+import { appointmentSourceCandidates, candidateId } from './appointment-source';
 import { requestHash } from './requests';
 
 const requiredColumns = ['personId', 'roleId', 'validFrom', 'validUntil', 'scopeKind', 'scopeIds'];
@@ -17,10 +17,7 @@ function timestamp(value:string) {
  return parsed;
 }
 function cells(line:string) { return line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim()); }
-async function candidateId(revisionId:string,line:number,quote:string) {
- const hash=await sha256(`${revisionId}\n${line}\n${quote}`);
- return `${hash.slice(0,8)}-${hash.slice(8,12)}-8${hash.slice(13,16)}-${((parseInt(hash[16],16)&3)|8).toString(16)}${hash.slice(17,20)}-${hash.slice(20,32)}`;
-}
+
 
 async function appointmentCandidates(env:Env,revisionId:string,context:KnowledgeContext) {
  const revision=await get<Revision>(env,'revisions',revisionId),artifact=await get<Artifact>(env,'artifacts',revision.artifactId),bundle=await getBundle(env,context);
@@ -80,39 +77,72 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
   assignments.push(assignment);
  }
  const adminPersons=assignments.filter(item=>item.grantsAdmin!==undefined).map(item=>item.personId);requireValue(new Set(adminPersons).size===adminPersons.length,422,'DUPLICATE_ADMIN_DESIGNATION','한 원문에서 직원별 관리자 지정은 한 번만 명시해 주세요.');
- requireValue(assignments.length>0,422,'ASSIGNMENT_TABLE_REQUIRED',`승인 원문에 ${requiredColumns.join('/')} 열의 역할 지정 표가 필요합니다.`);
- return {artifact,revision,assignments};
+ const sourceCandidates=await appointmentSourceCandidates(markdown,revision,persons);
+ requireValue(assignments.length>0||sourceCandidates.length>0,422,'ASSIGNMENT_TABLE_REQUIRED',`승인 원문에 ${requiredColumns.join('/')} 열의 역할 지정 표가 필요합니다.`);
+ return {artifact,revision,assignments,sourceCandidates,decision};
+}
+
+async function mappedAssignments(env:Env,actor:ActorContext,context:KnowledgeContext,revision:Revision,decisionId:string,candidates:AppointmentSourceCandidate[],mappings:AssignmentMapping[]) {
+ const [persons,artifacts,existing,bundle]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts'),all<RoleAssignment>(env,'assignments'),getBundle(env,context)]);
+ const result:RoleAssignment[]=[],seen=new Set<string>();
+ const sameScope=(a:RoleAssignment['scope'],b:RoleAssignment['scope'])=>a.kind===b.kind&&canonical([...a.ids].sort())===canonical([...b.ids].sort());
+ for(const mapping of mappings){
+  requireValue(mapping&&typeof mapping==='object'&&Object.keys(mapping).every(key=>['candidateId','personId','roleIds','validFrom','validUntil','scope','reason','replacesAssignmentIds'].includes(key)),422,'INVALID_ASSIGNMENT_MAPPING','한글 대조 입력에 허용되지 않은 필드가 있습니다.');
+  const candidate=candidates.find(item=>item.id===mapping.candidateId);
+  requireValue(candidate&&!candidate.blockedReason&&candidate.kind==='appointment',422,'ASSIGNMENT_SOURCE_BLOCKED',candidate?.blockedReason??'유효한 원문 후보를 선택해 주세요.');
+  requireValue(candidate.personIds.includes(mapping.personId)&&persons.some(person=>person.id===mapping.personId&&person.active),422,'ASSIGNMENT_NAME_MISMATCH','선택한 직원의 이름이 원문 담당자와 일치하지 않습니다.');
+  requireValue(mapping.validFrom===candidate.validFrom&&(mapping.validUntil||undefined)===candidate.validUntil,422,'ASSIGNMENT_DATE_MISMATCH','기간은 원문의 지정·해제일과 같은 한국 표준시 시각이어야 합니다.');
+  const start=timestamp(mapping.validFrom),end=mapping.validUntil?timestamp(mapping.validUntil):Infinity;
+  requireValue(end>start,422,'INVALID_ASSIGNMENT_PERIOD','종료 시각은 시작 시각 이후여야 합니다.');
+  requireValue(Array.isArray(mapping.roleIds)&&mapping.roleIds.length>0&&new Set(mapping.roleIds).size===mapping.roleIds.length&&mapping.roleIds.every(id=>bundle.roles.some(role=>role.id===id)),422,'UNKNOWN_ASSIGNMENT_ROLE','현재 릴리스의 중복 없는 역할을 선택해 주세요.');
+  const scope=mapping.scope;
+  requireValue(scope&&['all','system','resource'].includes(scope.kind)&&Array.isArray(scope.ids)&&scope.ids.every(id=>typeof id==='string'&&id.length>0)&&new Set(scope.ids).size===scope.ids.length&&(scope.kind==='all'?scope.ids.length===0:scope.ids.length>0),422,'INVALID_ASSIGNMENT_SCOPE','전체 또는 명시적인 시스템·자료 범위를 지정해 주세요.');
+  if(scope.kind==='system')requireValue(scope.ids.every(id=>bundle.entities.some(entity=>entity.id===id&&entity.type==='AISystem')),422,'UNKNOWN_ASSIGNMENT_SCOPE','등록된 시스템이 필요합니다.');
+  if(scope.kind==='resource')requireValue(scope.ids.every(id=>artifacts.some(artifact=>artifact.id===id)),422,'UNKNOWN_ASSIGNMENT_SCOPE','등록된 자료가 필요합니다.');
+  const reason=textField(mapping.reason,'역할·범위 대응 사유',2000),replacements=mapping.replacesAssignmentIds??{};
+  requireValue(replacements&&typeof replacements==='object'&&!Array.isArray(replacements)&&Object.keys(replacements).every(role=>mapping.roleIds.includes(role)),422,'REPLACEMENT_TARGET_MISMATCH','교체 대상의 역할을 확인해 주세요.');
+  for(const roleId of mapping.roleIds){
+   const identity=canonical([mapping.personId,roleId,scope.kind,[...scope.ids].sort()]);
+   requireValue(!seen.has(identity),422,'DUPLICATE_ASSIGNMENT_MAPPING','같은 직원·역할·범위를 두 번 대조할 수 없습니다.');seen.add(identity);
+   const replacesAssignmentId=replacements[roleId];
+   if(replacesAssignmentId){const old=existing.find(item=>item.id===replacesAssignmentId);requireValue(old&&old.status==='active'&&old.personId===mapping.personId&&old.roleId===roleId&&!old.grantsAdmin,422,'REPLACEMENT_TARGET_MISMATCH','같은 직원·역할의 활성 지정만 교체할 수 있으며 관리자 지정은 이 경로에서 교체할 수 없습니다.');}
+   requireValue(!existing.some(item=>item.status==='active'&&item.personId===mapping.personId&&item.roleId===roleId&&sameScope(item.scope,scope)&&item.id!==replacesAssignmentId),409,'ASSIGNMENT_DUPLICATE_ACTIVE','이미 유효한 지정입니다. 생략하거나 명시적으로 기존 지정을 교체해 주세요.');
+   result.push({id:await candidateId(revision.id,candidate.evidenceRefs[0].lineStart,canonical([candidate.id,identity,mapping.validFrom,mapping.validUntil??null])),personId:mapping.personId,roleId,scope:{kind:scope.kind,ids:[...scope.ids].sort()},validFrom:mapping.validFrom,...(mapping.validUntil?{validUntil:mapping.validUntil}:{}),approvedRevisionId:revision.id,approvalDecisionId:decisionId,evidenceRefs:candidate.evidenceRefs,status:'active',...(replacesAssignmentId?{replacesAssignmentId}:{}),adminMapping:{candidateId:candidate.id,actorId:actor.personId,at:new Date().toISOString(),reason}});
+  }
+ }
+ return result;
 }
 
 export async function listRoleAssignments(env:Env,actor:ActorContext) {
  requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
  const context=await getKnowledgeContext(env),bundle=await getBundle(env,context);
  const [items,artifacts]=await Promise.all([all<RoleAssignment>(env,'assignments'),all<Artifact>(env,'artifacts')]);
- const candidates:Array<{artifactId:string;revisionId:string;assignments:RoleAssignment[];error?:string}>=[];
+ const candidates:Array<{artifactId:string;revisionId:string;assignments:RoleAssignment[];sourceCandidates?:AppointmentSourceCandidate[];error?:string}>=[];
  for(const artifact of artifacts.filter(a=>a.kind==='record'&&a.recordTypeIds.some(id=>bundle.recordTypes.some(type=>type.id===id&&type.roleAssignment===true)))){
   const revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);
   if(revision.state!=='approved')continue;
-  try{const candidate=await appointmentCandidates(env,revision.id,context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments})}
+  try{const candidate=await appointmentCandidates(env,revision.id,context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates})}
   catch(error){if(!(error instanceof ApiError))throw error;candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:[],error:error.message})}
  }
- assertContext(context,await getKnowledgeContext(env));return {items,candidates,context};
+ assertContext(context,await getKnowledgeContext(env));return {items,candidates,context,persons:await all<Person>(env,'persons'),roles:bundle.roles,systems:bundle.entities.filter(entity=>entity.type==='AISystem'),resources:artifacts.map(({id,title})=>({id,title}))};
 }
 
 export async function applyRoleAssignment(env:Env,actor:ActorContext,input:AssignmentApplyInput):Promise<AssignmentResult> {
  requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('assignment.apply',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
- requireValue(Array.isArray(input.assignments)&&input.assignments.length>0,422,'ASSIGNMENTS_REQUIRED','대조한 지정 후보를 선택해 주세요.');
- const {artifact,revision,assignments}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
- requireValue(new Set(input.assignments.map(item=>item.id)).size===input.assignments.length&&input.assignments.every(item=>assignments.some(candidate=>canonical(candidate)===canonical(item))),422,'ASSIGNMENT_CANDIDATE_MISMATCH','적용 값이 승인된 원문의 지정 후보와 일치하지 않습니다.');
+ requireValue((Array.isArray(input.assignments)&&input.assignments.length>0&&input.mappedAssignments===undefined)||(Array.isArray(input.mappedAssignments)&&input.mappedAssignments.length>0&&input.assignments===undefined),422,'ASSIGNMENTS_REQUIRED','기계용 후보 또는 한글 대조값 중 하나를 선택해 주세요.');
+ const {artifact,revision,assignments,sourceCandidates,decision}=await appointmentCandidates(env,textField(input.revisionId,'revisionId'),context);
+ const selected=input.mappedAssignments?await mappedAssignments(env,actor,context,revision,decision.id,sourceCandidates,input.mappedAssignments):input.assignments!;
+ if(!input.mappedAssignments)requireValue(new Set(input.assignments!.map(item=>item.id)).size===input.assignments!.length&&input.assignments!.every(item=>assignments.some(candidate=>canonical(candidate)===canonical(item))),422,'ASSIGNMENT_CANDIDATE_MISMATCH','적용 값이 승인된 원문의 지정 후보와 일치하지 않습니다.');
  const authorization=await requireAuthorization(env,actor,'apply_assignment',resourceFor(artifact,revision),context);
- const existing=await all<RoleAssignment>(env,'assignments');requireValue(input.assignments.every(item=>!existing.some(old=>old.id===item.id)),409,'ASSIGNMENT_ALREADY_APPLIED','이미 적용한 지정입니다.');
- const replaced=input.assignments.filter(item=>item.replacesAssignmentId).map(item=>item.replacesAssignmentId!);requireValue(new Set(replaced).size===replaced.length,422,'DUPLICATE_REPLACEMENT','같은 기존 지정을 두 번 변경할 수 없습니다.');
+ const existing=await all<RoleAssignment>(env,'assignments');requireValue(selected.every(item=>!existing.some(old=>old.id===item.id)),409,'ASSIGNMENT_ALREADY_APPLIED','이미 적용한 지정입니다.');
+ const replaced=selected.filter(item=>item.replacesAssignmentId).map(item=>item.replacesAssignmentId!);requireValue(new Set(replaced).size===replaced.length,422,'DUPLICATE_REPLACEMENT','같은 기존 지정을 두 번 변경할 수 없습니다.');
  const statements:D1PreparedStatement[]=[];
- for(const item of input.assignments){
+ for(const item of selected){
   if(item.replacesAssignmentId){const old=existing.find(assignment=>assignment.id===item.replacesAssignmentId)!;statements.push(update(env,'assignments',old.id,{...old,status:'revoked'}))}
   if(item.grantsAdmin!==undefined){const person=await get<Person>(env,'persons',item.personId);statements.push(update(env,'persons',person.id,{...person,isAdmin:item.grantsAdmin,adminAssignmentId:item.grantsAdmin?item.id:null}))}
  }
- const result:AssignmentResult={assignmentIds:input.assignments.map(item=>item.id),context:{...context,dataRevision:context.dataRevision+1,authorityRevision:context.authorityRevision+1}};
- return commitMutation(env,actor,key,hash,context,result,[...statements,...input.assignments.map(item=>env.DB.prepare('INSERT INTO assignments(id,body) VALUES (?,?)').bind(item.id,JSON.stringify(item))),event(env,artifact.id,{kind:'role_assignments_applied',revisionId:revision.id,assignmentIds:result.assignmentIds,actorId:actor.personId,context,authorization})],{authorityRevision:result.context.authorityRevision});
+ const result:AssignmentResult={assignmentIds:selected.map(item=>item.id),context:{...context,dataRevision:context.dataRevision+1,authorityRevision:context.authorityRevision+1}};
+ return commitMutation(env,actor,key,hash,context,result,[...statements,...selected.map(item=>env.DB.prepare('INSERT INTO assignments(id,body) VALUES (?,?)').bind(item.id,JSON.stringify(item))),event(env,artifact.id,{kind:'role_assignments_applied',revisionId:revision.id,assignmentIds:result.assignmentIds,actorId:actor.personId,context,authorization})],{authorityRevision:result.context.authorityRevision});
 }

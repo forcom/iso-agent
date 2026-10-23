@@ -1,36 +1,22 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createTestEnvironment } from '../support/environment';
 import { startTestEngine } from '../support/engine';
+import {loadFixture} from '../support/fixtures';
 import { getKnowledgeContext } from '../../worker/src/lib/storage';
-import { parseMarkdown } from '../../worker/src/lib/markdown';
-import type { Artifact, Revision } from '../../worker/src/types';
+import {installAppointment} from '../support/appointment';
 import * as api from '../../worker/src/lib/assignments';
 import {resolveActor} from '../../worker/src/routes/session';
 import type { AssignmentApplyInput } from '../../packages/contracts/src/index';
-import {canonical,sha256} from '../../packages/knowledge/src/index';
 
 let stopEngine: () => Promise<void>;
 const cleanups: Array<() => Promise<void>> = [];
 beforeAll(async () => { stopEngine = await startTestEngine(); });
 afterAll(async () => { await stopEngine?.(); });
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); });
-async function appointment(row='reader | approver | 2026-01-01T00:00:00Z | 2027-01-01T00:00:00Z | all | |', extraColumns:string[]=[]) {
+async function appointment(row='reader | approver | 2026-01-01T00:00:00Z | 2027-01-01T00:00:00Z | all | |', extraColumns:string[]=[], source?:string) {
  const env = await createTestEnvironment();cleanups.push(env.cleanup);
- env.bundle.recordTypes.find(type=>type.id==='test-F01')!.roleAssignment = true;
- const policy=env.bundle.policies.find(p=>p.resourceTypeId==='test-F01'&&p.action==='apply_assignment')!;
- Object.assign(policy,{roleId:'administrator',origin:'product_policy',productPolicyId:'synthetic-admin-application',adminRequired:true,evidenceRefs:[],stateCondition:['approved']});
- env.bundle.productPolicies.push({id:'synthetic-admin-application',title:'Synthetic application',origin:'product_policy',sourceUrl:'https://example.invalid/synthetic',decision:'Synthetic administrator application of already approved appointment',conflicts:[]});
- env.bundle.manifest.manifestHash='';env.bundle.manifest.manifestHash=await sha256(canonical(env.bundle));
- await env.bindings.SOURCES.put('releases/test-release.json',JSON.stringify(env.bundle));
- await env.bindings.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(env.bundle.manifest),env.bundle.manifest.releaseId).run();
- const markdown=`# Synthetic approved appointment\n\n| personId | roleId | validFrom | validUntil | scopeKind | scopeIds | delegatedFromAssignmentId ${extraColumns.map(column=>'| '+column+' ').join('')}|\n| --- | --- | --- | --- | --- | --- | --- ${extraColumns.map(()=>'| --- ').join('')}|\n| ${row}\n`;
- const parsed=await parseMarkdown('synthetic.md',new TextEncoder().encode(markdown));
- const artifact:Artifact={id:'appointment',documentCode:'SYNTHETIC-APPOINTMENT',kind:'record',title:'Synthetic appointment',recordTypeIds:['test-F01'],workingRevisionId:'appointment-v1',effectiveRevisionId:'appointment-v1',systemIds:[]};
- const revision:Revision={id:'appointment-v1',artifactId:artifact.id,filename:'synthetic.md',sourceSha256:parsed.sha256,textSha256:parsed.textSha256,objectKey:'sources/appointment-v1.md',textKey:'text/appointment-v1.txt',state:'approved',createdAt:'2026-01-01',createdBy:'author',previousRevisionId:null,templateRevisionIds:['test-tpl-rev-1'],systemIds:[],conditions:{},fieldMappings:{},evidenceStatus:'verified',approvedBy:['approver']};
- await env.bindings.SOURCES.put(revision.objectKey,markdown);await env.bindings.SOURCES.put(revision.textKey,markdown);
- await env.bindings.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(artifact.id,artifact.documentCode,artifact.kind,JSON.stringify(artifact)).run();
- await env.bindings.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revision.id,artifact.id,JSON.stringify(revision)).run();
- await env.bindings.DB.prepare('INSERT INTO decisions VALUES(?,?,?)').bind('appointment-approval',revision.id,JSON.stringify({id:'appointment-approval',revisionId:revision.id,decision:'approve',sourceSha256:revision.sourceSha256,actorId:'approver'})).run();
+ const markdown=source??`# Synthetic approved appointment\n\n| personId | roleId | validFrom | validUntil | scopeKind | scopeIds | delegatedFromAssignmentId ${extraColumns.map(column=>'| '+column+' ').join('')}|\n| --- | --- | --- | --- | --- | --- | --- ${extraColumns.map(()=>'| --- ').join('')}|\n| ${row}\n`;
+ const {artifact,revision}=await installAppointment(env,markdown);
  return { ...env, artifact, revision, actor:await env.select('admin'),context:await getKnowledgeContext(env.bindings) };
 }
 
@@ -123,5 +109,71 @@ describe('approved role appointment application',()=>{
   await env.bindings.DB.prepare('UPDATE context SET authority_revision=authority_revision+1').run();
   await expect(api.applyRoleAssignment(env.bindings,env.actor,{revisionId:env.revision.id,assignments:view.candidates[0].assignments,requestKey:'stale',expectedContext:env.context})).rejects.toMatchObject({status:409});
   expect(await env.bindings.DB.prepare('SELECT COUNT(*) AS n FROM events').first('n')).toBe(0);
+ });
+});
+
+
+describe('Korean appointment reconciliation',()=>{
+ async function korean(){return appointment(undefined,[],await loadFixture('korean-appointment.md'))}
+ const mapping=(candidateId:string)=>({candidateId,personId:'reader',roleIds:['approver'],validFrom:'2026-04-27T00:00:00+09:00',scope:{kind:'all' as const,ids:[]},reason:'원문의 검토·승인 업무를 합성 승인 역할과 대조함'});
+ it('extracts source rows without granting roles and exposes blocked candidates',async()=>{
+  const env=await korean(),view=await api.listRoleAssignments(env.bindings,env.actor);
+  const source=view.candidates[0] as any;
+  expect(source.error).toBeUndefined();expect(source.assignments).toEqual([]);
+  expect(source.sourceCandidates).toHaveLength(4);
+  const primary=source.sourceCandidates.find((c:any)=>c.sectionId==='R-01'&&c.kind==='appointment');
+  expect([...primary.personIds].sort()).toEqual(['reader','reviewer']);
+  expect(primary.personIds).not.toContain('director');
+  expect(primary.evidenceRefs.map((r:any)=>r.quote).join('\n')).toContain('2026. 4. 27. 지정');
+  expect(source.sourceCandidates.filter((c:any)=>c.blockedReason)).toHaveLength(3);
+  expect(await env.bindings.DB.prepare("SELECT COUNT(*) AS n FROM assignments WHERE json_extract(body,'$.personId')='reader'").first('n')).toBe(0);
+ });
+ it('blocks an unspecified release date instead of creating indefinite authority',async()=>{
+  const source=(await loadFixture('korean-appointment.md')).replace('해제일 없음','해제일 별도 통보');
+  const env=await appointment(undefined,[],source),view=await api.listRoleAssignments(env.bindings,env.actor);
+  expect((view.candidates[0] as any).sourceCandidates[0].blockedReason).toBeTruthy();
+ });
+ it('does not turn planned or conditional appointments into active authority or reporting names into holders',async()=>{
+  const original=await loadFixture('korean-appointment.md');
+  for(const source of [original.replace('2026. 4. 27. 지정 / 해제일 없음','2026. 4. 27. 예정 / 교육 완료 시 지정'),original.replace('전사 합성 기록의 검토·승인','교육 이수 후 전사 합성 기록의 검토·승인')]){
+   const env=await appointment(undefined,[],source),view=await api.listRoleAssignments(env.bindings,env.actor);
+   expect((view.candidates[0] as any).sourceCandidates[0].blockedReason).toBeTruthy();
+  }
+  const env=await appointment(undefined,[],original.replace('/ 팀장 시험 director','(보고 대상: 시험 director)'));
+  const view=await api.listRoleAssignments(env.bindings,env.actor);
+  expect((view.candidates[0] as any).sourceCandidates[0].personIds).not.toContain('director');
+ });
+ it('applies multiple roles with administrator mapping evidence and old authority',async()=>{
+  const env=await korean(),view=await api.listRoleAssignments(env.bindings,env.actor);
+  const candidate=(view.candidates[0] as any).sourceCandidates[0];
+  const input:any={revisionId:env.revision.id,mappedAssignments:[{...mapping(candidate.id),roleIds:['approver','reviewer']}],requestKey:'mapped',expectedContext:env.context};
+  const result=await api.applyRoleAssignment(env.bindings,env.actor,input);
+  expect(result.assignmentIds).toHaveLength(2);expect(result.context.authorityRevision).toBe(env.context.authorityRevision+1);
+  expect(await api.applyRoleAssignment(env.bindings,env.actor,input)).toEqual(result);
+  const row=await env.bindings.DB.prepare('SELECT body FROM assignments WHERE id=?').bind(result.assignmentIds[0]).first<{body:string}>();
+  expect(JSON.parse(row!.body).adminMapping).toMatchObject({actorId:'admin',reason:input.mappedAssignments[0].reason,candidateId:candidate.id});
+  expect(JSON.parse(row!.body).grantsAdmin).toBeUndefined();
+  expect(await env.bindings.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE json_extract(body,'$.kind')='role_assignments_applied'").first('n')).toBe(1);
+  await expect(api.applyRoleAssignment(env.bindings,env.actor,{...input,requestKey:'duplicate',expectedContext:result.context})).rejects.toMatchObject({status:409});
+ });
+ it('rejects changed names, dates, blocked delegation, admin flags and authority before writing',async()=>{
+  const env=await korean(),view=await api.listRoleAssignments(env.bindings,env.actor),candidates=(view.candidates[0] as any).sourceCandidates;
+  const input:any={revisionId:env.revision.id,mappedAssignments:[mapping(candidates[0].id)],requestKey:'invalid',expectedContext:env.context};
+  for(const change of [{personId:'director'},{validFrom:'2026-04-28T00:00:00+09:00'},{validUntil:'2027-01-01T00:00:00+09:00'},{roleIds:['missing']},{reason:''},{grantsAdmin:true},{candidateId:candidates.find((c:any)=>c.kind==='delegation').id}]){
+   await expect(api.applyRoleAssignment(env.bindings,env.actor,{...input,mappedAssignments:[{...input.mappedAssignments[0],...change}]})).rejects.toMatchObject({status:422});
+  }
+  await expect(api.applyRoleAssignment(env.bindings,await env.select('reader'),input)).rejects.toMatchObject({status:403});
+  expect(await getKnowledgeContext(env.bindings)).toEqual(env.context);
+  await env.bindings.DB.prepare('UPDATE revisions SET body=? WHERE id=?').bind(JSON.stringify({...env.revision,state:'draft'}),env.revision.id).run();
+  await expect(api.applyRoleAssignment(env.bindings,env.actor,input)).rejects.toMatchObject({status:409});
+ });
+ it('requires explicit matching replacement for an already active person-role-scope',async()=>{
+  const env=await korean(),view=await api.listRoleAssignments(env.bindings,env.actor),candidate=(view.candidates[0] as any).sourceCandidates[0];
+  const mapped={...mapping(candidate.id),personId:'reviewer',roleIds:['reviewer']};
+  const input:any={revisionId:env.revision.id,mappedAssignments:[mapped],requestKey:'replace-korean',expectedContext:env.context};
+  await expect(api.applyRoleAssignment(env.bindings,env.actor,input)).rejects.toMatchObject({code:'ASSIGNMENT_DUPLICATE_ACTIVE'});
+  const result=await api.applyRoleAssignment(env.bindings,env.actor,{...input,mappedAssignments:[{...mapped,replacesAssignmentIds:{reviewer:'test-assignment-reviewer'}}]});
+  expect(result.assignmentIds).toHaveLength(1);
+  expect(await env.bindings.DB.prepare("SELECT json_extract(body,'$.status') AS status FROM assignments WHERE id='test-assignment-reviewer'").first('status')).toBe('revoked');
  });
 });

@@ -1,10 +1,10 @@
 import {Hono} from 'hono';
-import type {AppEnv} from '../types';
+import type {AppEnv,Change} from '../types';
 import {all,get} from '../lib/storage';
 import {uploadInput} from './records';
-import {addRegulationFile,buildRegulationChange,cancelRegulationChange,rebaseRegulationChange,changeDetails,createRegulationChange,decideRegulationChange,publishRegulationChange,requireAdmin,withdrawRegulation} from '../lib/releases';
+import {addRegulationFile,buildRegulationChange,cancelRegulationChange,rebaseRegulationChange,changeDetails,createRegulationChange,decideRegulationChange,publishRegulationChange,regulationChangeView,requireAdmin,withdrawRegulation} from '../lib/releases';
 export const adminRoutes=new Hono<AppEnv>();
-adminRoutes.get('/admin/regulation-changes',async c=>c.json({items:await all(c.env,'regulation_changes')}));
+adminRoutes.get('/admin/regulation-changes',async c=>c.json({items:await Promise.all((await all<Change>(c.env,'regulation_changes')).map(change=>regulationChangeView(c.env,change)))}));
 adminRoutes.get('/admin/regulation-changes/:id',async c=>c.json(await changeDetails(c.env,c.req.param('id'))));
 adminRoutes.post('/admin/regulation-changes',async c=>c.json(await createRegulationChange(c.env,c.get('actor'),await c.req.json()),201));
 adminRoutes.post('/admin/regulation-changes/:id/files',async c=>c.json(await addRegulationFile(c.env,c.get('actor'),c.req.param('id'),await uploadInput(c.req.raw)),201));

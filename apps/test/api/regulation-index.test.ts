@@ -39,6 +39,19 @@ async function indexChange(raw: string, stored: string | null) {
   return { path: `/api/admin/regulation-changes/${changeId}`, index };
 }
 
+it('downloads index source bytes with hash verification and session protection', async () => {
+  const raw = '\uFEFF# Index\r\nNavigation only.\r\n';
+  const { index } = await indexChange(raw, raw);
+  const path = `/api/source-index/${index.revisionId}?download=1`;
+  const response = await app.request(path, { headers: await headers() }, env.bindings);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toContain('text/markdown');
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(new TextEncoder().encode(raw));
+  expect((await app.request(path, {}, env.bindings)).status).toBe(401);
+  await env.bindings.SOURCES.put(`sources/${index.revisionId}/${index.sha256}.md`, '# Tampered');
+  expect((await app.request(path, { headers: await headers() }, env.bindings)).status).toBe(422);
+});
+
 it.each([
   { name: 'legacy LF index without a stored original', raw: '# Index\nNavigation only.\n', stored: null },
   { name: 'stored BOM/CRLF index original', raw: '\uFEFF# Index\r\nNavigation only.\r\n', stored: '\uFEFF# Index\r\nNavigation only.\r\n' },

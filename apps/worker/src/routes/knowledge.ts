@@ -5,7 +5,7 @@ import {all,getBundle,getKnowledgeContext,assertContext} from '../lib/storage';
 import {queryGraph,snapshot} from '../lib/engine';
 import {answerQuestion,selectGrounding} from '../lib/llm';
 import {requireValue,textField} from '../lib/errors';
-import {parseMarkdown,sha256} from '../lib/markdown';
+import {markdownDownload,parseMarkdown,sha256} from '../lib/markdown';
 export const knowledgeRoutes=new Hono<AppEnv>();
 knowledgeRoutes.get('/source-index/:revisionId',async c=>{
  const context=await getKnowledgeContext(c.env),bundle=await getBundle(c.env,context);
@@ -16,6 +16,7 @@ knowledgeRoutes.get('/source-index/:revisionId',async c=>{
  const bytes=new Uint8Array(await object.arrayBuffer());requireValue(await sha256(bytes)===source.sha256,422,'SOURCE_CHANGED','원본 해시가 일치하지 않습니다.');
  const parsed=await parseMarkdown('index.md',bytes);requireValue(parsed.textSha256===source.textSha256,422,'SOURCE_CHANGED','추출 텍스트 해시가 일치하지 않습니다.');
  assertContext(context,await getKnowledgeContext(c.env));
+ if(c.req.query('download')==='1')return markdownDownload(bytes,`${source.code}.md`);
  return c.json({source:{revisionId:source.revisionId,title:source.title,code:source.code,kind:source.kind,sha256:source.sha256},markdown:parsed.markdown,evidenceStatus:'verified',context});
 });
 knowledgeRoutes.get('/entities',async c=>{

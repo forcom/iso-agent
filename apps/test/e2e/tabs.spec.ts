@@ -21,7 +21,7 @@ test('workspace tabs name documents and reuse the same artifact across source an
 
   for(const path of ['/sources/test-reg-rev?revision=test-reg-rev&citation=synthetic-tab-citation','/reviews/records/test-reg-rev?revision=test-reg-rev','/documents/test-reg?revision=test-reg-rev']){
     await page.goto(`/#${path}`);
-    await expect(page.getByRole('heading',{name:'시험 절차',exact:true})).toBeVisible();
+    await expect(page.locator('.page-title').getByRole('heading',{name:'시험 절차',exact:true})).toBeVisible();
     await expect(tabs.getByRole('link',{name:'시험 절차',exact:true})).toHaveAttribute('href',`#${path}`);
     await expect(tabs.getByRole('link')).toHaveCount(4);
     await expect(tabs.locator('.workspace-tab.active').getByRole('link')).toHaveText('시험 절차');
@@ -51,7 +51,7 @@ test('workspace tabs keep distinct records with the same title and protect unsav
     await dialog.getByLabel('Markdown 파일',{exact:true}).setInputFiles({name:'synthetic-tab.md',mimeType:'text/markdown',buffer:Buffer.from('# 같은 제목의 합성 기록\n탭 식별용 합성 자료입니다.\n')});
     await dialog.getByRole('button',{name:'파일 등록',exact:true}).click();
     await expect(dialog).not.toBeVisible();
-    await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+    await expect(page.locator('.page-title').getByRole('heading',{name:title,exact:true})).toBeVisible();
     urls.push(page.url());
     await expect(tabs.getByRole('link',{name:title,exact:true})).toHaveCount(i+1);
   }

@@ -1,7 +1,8 @@
 import {Hono} from 'hono';
 import type {AppEnv,Artifact,Revision} from '../types';
 import {all,get} from '../lib/storage';
-import {readRevision} from '../lib/artifacts';
+import {readRevisionFile} from '../lib/artifacts';
+import {markdownDownload} from '../lib/markdown';
 import {requireValue} from '../lib/errors';
 export const artifactRoutes=new Hono<AppEnv>();
 artifactRoutes.get('/artifacts',async c=>{
@@ -14,5 +15,5 @@ async function detail(env:AppEnv['Bindings'],id:string){
 }
 artifactRoutes.get('/artifacts/by-revision/:revisionId',async c=>{const r=await get<Revision>(c.env,'revisions',c.req.param('revisionId'));return c.json(await detail(c.env,r.artifactId))});
 artifactRoutes.get('/artifacts/:id',async c=>c.json(await detail(c.env,c.req.param('id'))));
-artifactRoutes.get('/artifacts/:id/revisions/:revisionId/content',async c=>{const result=await readRevision(c.env,c.req.param('revisionId'));requireValue(result.revision.artifactId===c.req.param('id'),404,'NOT_FOUND','해당 자료의 버전이 아닙니다.');return c.json(result)});
+artifactRoutes.get('/artifacts/:id/revisions/:revisionId/content',async c=>{const {bytes,...result}=await readRevisionFile(c.env,c.req.param('revisionId'));requireValue(result.revision.artifactId===c.req.param('id'),404,'NOT_FOUND','해당 자료의 버전이 아닙니다.');return c.req.query('download')==='1'?markdownDownload(bytes,result.revision.filename):c.json(result)});
 artifactRoutes.get('/events',async c=>c.json({items:(await all<any>(c.env,'events')).filter(e=>!c.req.query('artifactId')||e.artifactId===c.req.query('artifactId'))}));

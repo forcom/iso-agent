@@ -1,0 +1,45 @@
+import {test,expect,type Page} from '@playwright/test';
+async function person(page:Page,id:string){await page.getByRole('combobox',{name:'직원 선택',exact:true}).selectOption(id);await expect(page.getByRole('combobox',{name:'직원 선택',exact:true})).toHaveValue(id)}
+test.beforeEach(async({page})=>{page.on('dialog',d=>void d.accept());await page.goto('/#/home');await person(page,'admin')});
+for(const width of [1440,390])test(`ERP research schedules and handoff at ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:900});await page.goto('/#/research');
+ await expect(page.getByRole('heading',{name:'외부 조사',exact:true})).toBeVisible();
+ await expect(page.getByText('Dots 연결 필요',{exact:true}).first()).toBeVisible();
+ await page.getByRole('button',{name:'새 일정',exact:true}).click();const form=page.getByRole('dialog');
+ const title=`합성 월간 조사 ${width}-${Date.now()}`;
+ await form.getByLabel('업무명',{exact:true}).fill(title);
+ await form.getByLabel('조사 목적',{exact:true}).fill('합성 외부 이슈 초안 준비');
+ await form.getByLabel('조사 대상',{exact:true}).fill('합성 AI 서비스');
+ await form.getByLabel('기록 유형',{exact:true}).selectOption('test-F01');
+ await form.getByLabel('조사할 항목',{exact:true}).fill('외부 이슈');
+ await form.getByLabel('업무 담당자',{exact:true}).selectOption('author');
+ await form.getByLabel('실행 주기',{exact:true}).selectOption('monthly');
+ await form.getByLabel('매월 날짜',{exact:true}).fill('31');
+ await form.getByLabel('일정 시작일',{exact:true}).fill('2030-01-01');
+ await expect(form.getByText(/다음 실행.*2030/)).toBeVisible();
+ await form.getByRole('button',{name:'일정 저장',exact:true}).click();await expect(form).not.toBeVisible();
+ const card=page.getByRole('article',{name:title});await card.getByRole('button',{name:'지금 실행',exact:true}).click();
+ await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+ await page.getByLabel('현재 담당자',{exact:true}).selectOption('reader');
+ await page.getByRole('button',{name:'담당 변경',exact:true}).click();
+ await expect(page.getByText('요청자: 시험 admin',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('현재 담당자',{exact:true})).toHaveValue('reader');
+ await page.getByRole('link',{name:'외부 조사 목록',exact:true}).click();
+ await page.getByRole('article',{name:title}).getByRole('button',{name:'예약 중지',exact:true}).click();
+ await expect(page.getByRole('article',{name:title})).toContainText('예약 중지됨');
+ await person(page,'reader');await expect(page.getByRole('button',{name:'새 일정',exact:true})).toHaveCount(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+test('research proposals remain drafts and use the normal upload permission flow',async({page})=>{
+ const response=await page.request.post('/api/test/research/fixture');expect(response.ok()).toBe(true);const {jobId}=await response.json();
+ await person(page,'author');await page.goto(`/#/research/jobs/${jobId}`);
+ await expect(page.getByRole('heading',{name:'합성 결과 확인용 조사',exact:true})).toBeVisible();
+ await expect(page.getByText(/ERP에서 원문을 독립적으로 확보/)).toBeVisible();
+ await page.getByRole('button',{name:'기록으로 채택',exact:true}).click();const form=page.getByRole('dialog');
+ await form.getByLabel('문서번호',{exact:true}).fill(`TEST-RESEARCH-${Date.now()}`);
+ await form.getByLabel('기록명',{exact:true}).fill('사람이 검토한 조사 기록');
+ await form.getByLabel('Markdown 파일',{exact:true}).setInputFiles({name:'reviewed.md',mimeType:'text/markdown',buffer:Buffer.from('# 사람이 검토한 초안\n실제 수행은 미확인\n')});
+ await form.getByRole('button',{name:'파일 등록',exact:true}).click();await expect(form).not.toBeVisible();
+ await expect(page.locator('.page-title').getByRole('heading',{name:'사람이 검토한 조사 기록',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:'조사 제안·근거 보기',exact:true})).toBeVisible();
+});

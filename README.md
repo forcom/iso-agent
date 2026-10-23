@@ -92,3 +92,17 @@ output/         # 구축·빌드·검증 결과, 로컬 상태, 설계·검토 �
 기존 `.raw/`, `.dev.vars`, `output/runtime/legacy-worker/`와 `output/runtime/worker/`의 데이터는 보존한다. 폐기된 bootstrap·시드 import·폴더 스캔 API를 제공하지 않는다. 확정 설계·계획은 Issue #2에서, 저장소 규칙은 [AGENTS.md](AGENTS.md)에서 관리한다.
 
 라이선스는 [MPL-2.0](LICENSE)이며 관련 고지는 [NOTICE](NOTICE)를 참조한다.
+
+## 외부 조사 ERP 기반 (Issue #16)
+
+[구현 기준과 단계별 계획](https://github.com/forcom/iso-agent/issues/16). 회사 공통 Dots 연결과 ERP 직원/업무 담당을 별도로 관리한다. `/research`에서 매일·매주·매월 일정, 일회성 작업, 조사 범위·양식·담당을 설정하고 작업 결과·초안·근거 이력을 조회한다. 시간대는 Asia/Seoul, 저장은 UTC이며 없는 월별 날짜는 말일로 보정한다. 60종 양식의 외부 조사·내부 입력 구분은 제품 안내이며 실제 수행·승인 증거가 아니다.
+
+첫 구현에는 ERP 저장소·권한·일정 계산·Cron 작업 생성·실행권과 결과 검증의 서버 내부 계약·사람의 Markdown 채택 흐름이 포함된다. Dots의 실제 OAuth/MCP Events 연결, 웹훅 전송, 자동 외부 원문 취득은 아직 구현하지 않았다. 회사 연결은 `unconfigured`로 시작하며 ERP 직원 선택 세션으로 기계 실행을 대행하는 엔드포인트는 없다. 외부 출처의 검증 주장은 미검증 보고로 저장하고, 초안은 Q&A 근거나 공식 기록으로 자동 등록하지 않는다.
+
+신규 빈 DB의 설치 도구는 `apps/worker/migrations/`의 SQL을 순서대로 적용한다. 기존 `0001_erp.sql` DB에는 코드 배포 전에 `0002_research.sql`을 **추가로 한 번** 적용한다. 기존 DB를 초기화하거나 첫 migration을 다시 실행하지 않는다. 이 저장소의 초기 설치는 SQL 직접 적용 방식이므로 기존 설치에서는 해당 환경의 `wrangler d1 execute ... --file migrations/0002_research.sql`을 사용한다. 로컬·원격의 대상 DB와 상태 경로를 확인하고 별도 배포 절차로 실행한다. 이번 개발에서는 실제 운영 DB migration·배포를 실행하지 않았다.
+
+5분 간격 Cron 진입점은 `src/entry.ts`에 있다. `RESEARCH_SCHEDULES_ENABLED`의 기본값은 `false`다. migration과 운영 환경을 확인한 뒤 `true`로 설정하면 ERP 작업 생성만 활성화되며, Dots 연결 완료를 의미하지 않는다. 이미 생성된 작업은 일정 편집 당시 변경 사항으로 덮어쓰지 않는다. 담당 변경은 현재 담당만 바꾸고 과거 요청자와 원래 정의를 보존한다. 동시 실행권은 1건이며, 응답 미확인·실행 중 취소는 새 전달을 보류한다. 초기 한도는 최근 목록 200건, 한 Cron당 일정 100개, 시작 확인 15분·실행 60분이다.
+
+기록 채택은 제안 다운로드 → 사람의 보완 → 기존 Markdown 업로드다. 서버가 실제 제안 ID·기준 양식·권한·원문을 확인하고, 실제 업로드와 제안의 해시를 구분해 같은 기록 트랜잭션에 채택 이력을 남긴다. 기록의 기존 검토·승인 요건은 유지한다. 이전 스키마의 백업 형식과 빈 조사 저장소의 유지보수는 지원한다. 조사 일정·작업이 생긴 DB에서는 기존 업무 초기화를 거부하며, 새 조사 이력의 보존 범위를 정한 별도 유지보수 계획이 필요하다.
+
+검증: `pnpm --filter @iso-agent/test test research`와 `pnpm --filter @iso-agent/test test:e2e research.spec.ts`. 합성 Dots 실행은 테스트 내부에서만 구성하며 실제 제공자의 연결·계정 공유 허용·구독 조건을 증명하지 않는다.

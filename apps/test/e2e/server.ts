@@ -7,6 +7,7 @@ import { createTestEnvironment, repoRoot } from '../support/environment';
 import { startTestEngine } from '../support/engine';
 import {installAppointment} from '../support/appointment';
 import {loadFixture} from '../support/fixtures';
+import {seedResearchResult} from './research-fixture';
 
 // The browser harness only uses synthetic data and isolated local D1/R2 state.
 const stopEngine = await startTestEngine();
@@ -21,6 +22,9 @@ const vite = await createViteServer({
 const server = createServer(async (request, response) => {
   if (!request.url?.startsWith('/api/')) { vite.middlewares(request, response); return; }
   try {
+    if(request.method==='POST'&&request.url==='/api/test/research/fixture'){
+      response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(await seedResearchResult(environment)));return;
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const url = `http://127.0.0.1:4173${request.url}`;

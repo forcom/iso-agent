@@ -27,7 +27,7 @@ async function readDatabase(env:Env){
  const selected=tables.filter(table=>present.has(table));
  const queries=[...selected.map(table=>env.DB.prepare(`SELECT * FROM ${table}`)),env.DB.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations' ORDER BY type,name")];
  const result=await env.DB.batch(queries);check(result.every(item=>item.success),'Database snapshot failed');
- const data=Object.fromEntries(tables.map(table=>[table,present.has(table)?sorted(result[selected.indexOf(table)].results as Row[]):[]])) as Tables,schema=sorted(result.at(-1)!.results as SchemaRow[]);
+ const data=Object.fromEntries(selected.map((table,i)=>[table,sorted(result[i].results as Row[])])) as Tables,schema=sorted(result.at(-1)!.results as SchemaRow[]);
  check(data.context.length===1&&data.context[0].id===1,'Installed context required');
  check(schema.filter(row=>row.type==='table').every(row=>tables.includes(row.name as Table)),'Unknown application table; maintenance must be updated before proceeding');
  for(const sql of await requiredTriggers(present.has('research_connection')))check(schema.some(row=>row.type==='trigger'&&normalizedSql(row.sql)===normalizedSql(sql)),`Required immutable/fence trigger missing or changed: ${sql.split(' ')[2]}`);
@@ -119,11 +119,11 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
  // Replay rows have a compound key; the transaction clears the complete fenced table.
  deleteRows.mutation_requests=current.tables.mutation_requests.map(row=>`${row.actor_id}:${row.request_key}`);
  // Unchanged rows need no UPDATE; assignments are re-inserted after the full delete above.
- for(const table of tables)if(table!=='assignments'){const existing=new Map(current.tables[table].map(row=>[String(row.id),canonical(row)]));replaceRows[table]=replaceRows[table].filter(row=>existing.get(String(row.id))!==canonical(row))}
+ for(const table of tables.filter(table=>current.tables[table]))if(table!=='assignments'){const existing=new Map(current.tables[table].map(row=>[String(row.id),canonical(row)]));replaceRows[table]=replaceRows[table].filter(row=>existing.get(String(row.id))!==canonical(row))}
  const context=current.tables.context[0];replaceRows.context=[{...context,release_id:baseline.tables.context[0].release_id,rules_hash:baseline.tables.context[0].rules_hash,data_revision:Number(context.data_revision)+1,authority_revision:Number(context.authority_revision)+1}];
  const replayObjects=current.tables.mutation_requests.flatMap(row=>{const pointer=jsonPointer(JSON.parse(String(row.result)),'mutation-results');if(!pointer)return [];check(current.objects.some(object=>object.key===pointer.key&&object.sha256===pointer.sha256),'Replay object missing or changed');return [pointer.key]});
  const deleteObjects=[...new Set([...replayObjects,...current.tables.revisions.filter(row=>deleteRows.revisions.includes(String(row.id))).flatMap(row=>{const revision=body(row);return [revision.objectKey,revision.textKey]})])].filter(key=>!keep.keepObjects.has(key)).sort();
- const after=structuredClone(current.tables);for(const table of tables){after[table]=table==='mutation_requests'?[]:after[table].filter(row=>!deleteRows[table].includes(String(row.id)));for(const replacement of replaceRows[table]){after[table]=after[table].filter(row=>row.id!==replacement.id);after[table].push(replacement)}sorted(after[table])}
+ const after=structuredClone(current.tables);for(const table of tables.filter(table=>current.tables[table])){after[table]=table==='mutation_requests'?[]:after[table].filter(row=>!deleteRows[table].includes(String(row.id)));for(const replacement of replaceRows[table]){after[table]=after[table].filter(row=>row.id!==replacement.id);after[table].push(replacement)}sorted(after[table])}
  const plan={version:1 as const,operation,target,baselineHash:baseline.hash,beforeHash:current.stateHash,createdAt:new Date().toISOString(),deleteRows,replaceRows,deleteObjects,preserveObjects:[...keep.keepObjects].map(([key,sha256])=>({key,sha256})).sort((a,b)=>a.key.localeCompare(b.key)),afterDatabaseHash:await databaseHash({tables:after,schema:current.schema})};return {...plan,hash:await digest(plan)};
 }
 function guards(env:Env,current:{tables:Tables;schema:SchemaRow[]}){
@@ -166,12 +166,12 @@ export async function restoreMaintenanceBackup(env:Env,target:MaintenanceTarget,
  // Write the old bytes first; D1 cannot point to missing originals after the atomic restore.
  for(const object of backup.objects){const metadata:any={customMetadata:object.customMetadata,httpMetadata:{...object.httpMetadata}};if(metadata.httpMetadata.cacheExpiry)metadata.httpMetadata.cacheExpiry=new Date(metadata.httpMetadata.cacheExpiry);await env.SOURCES.put(object.key,Buffer.from(object.bytes,'base64'),metadata)}
  const statements=guards(env,current);for(const row of current.schema.filter(row=>row.type==='trigger')){check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(row.name),'Invalid trigger identifier');statements.push(env.DB.prepare(`DROP TRIGGER ${row.name}`))}
- for(const table of [...tables].reverse().filter(table=>current.schema.some(row=>row.type==='table'&&row.name===table)))statements.push(env.DB.prepare(`DELETE FROM ${table}`));for(const table of tables)statements.push(...insertRows(env,table,backup.tables[table]));for(const row of backup.schema.filter(row=>row.type==='trigger'))statements.push(env.DB.prepare(row.sql));
+ for(const table of [...tables].reverse().filter(table=>current.schema.some(row=>row.type==='table'&&row.name===table)))statements.push(env.DB.prepare(`DELETE FROM ${table}`));for(const table of tables)statements.push(...insertRows(env,table,backup.tables[table]??[]));for(const row of backup.schema.filter(row=>row.type==='trigger'))statements.push(env.DB.prepare(row.sql));
  const results=await env.DB.batch(statements);check(results.every(result=>result.success),'Backup restore transaction failed');
  for(const key of await objectKeys(env))if(!backup.objects.some(object=>object.key===key))await env.SOURCES.delete(key);
  const restored=await snapshotMaintenance(env,target);check(restored.stateHash===backup.stateHash,'Restored backup does not match original D1 rows and R2 bytes');return {restored:true,stateHash:restored.stateHash};
 }
 export function backupSql(snapshot:MaintenanceSnapshot){
  const literal=(value:string|number|null)=>value===null?'NULL':typeof value==='number'?String(value):`CAST(X'${Buffer.from(value).toString('hex')}' AS TEXT)`;
- return ['PRAGMA foreign_keys=ON;',...snapshot.schema.filter(row=>row.type==='table').map(row=>`${row.sql};`),...tables.flatMap(table=>snapshot.tables[table].map(row=>`INSERT INTO ${table}(${columns[table].join(',')}) VALUES(${columns[table].map(name=>literal(row[name])).join(',')});`)),...snapshot.schema.filter(row=>row.type!=='table').map(row=>`${row.sql};`)].join('\n')+'\n';
+ return ['PRAGMA foreign_keys=ON;',...snapshot.schema.filter(row=>row.type==='table').map(row=>`${row.sql};`),...tables.flatMap(table=>(snapshot.tables[table]??[]).map(row=>`INSERT INTO ${table}(${columns[table].join(',')}) VALUES(${columns[table].map(name=>literal(row[name])).join(',')});`)),...snapshot.schema.filter(row=>row.type!=='table').map(row=>`${row.sql};`)].join('\n')+'\n';
 }

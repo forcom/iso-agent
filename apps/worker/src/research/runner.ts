@@ -47,17 +47,18 @@ export async function beginResearchJob(env:Env,id:string,now=new Date().toISOStr
  return next.input;
 }
 export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=new Date().toISOString()) {
+ requireValue(input&&typeof input==='object'&&!Array.isArray(input),422,'INVALID_RESULT','결과 객체가 필요합니다.');
  const encoded=canonical(input);requireValue(new TextEncoder().encode(encoded).length<=256*1024,413,'RESULT_TOO_LARGE','조사 결과는 256 KiB 이하로 제출해 주세요.');
  const hash=await sha256(encoded),attempt=await researchGet<ResearchAttempt>(env,'research_attempts',id);
  if(attempt.resultHash){requireValue(attempt.resultHash===hash,409,'RESULT_CONFLICT','이미 접수된 결과와 다릅니다.');return {received:true,duplicate:true}}
  const job=await researchGet<ResearchJob>(env,'research_jobs',attempt.jobId),company=await connection(env);
  const live=company.state==='ready'&&company.version===attempt.connectionVersion&&attempt.state==='running'&&job.state==='running'&&job.attemptId===id&&Date.parse(attempt.expiresAt)>Date.parse(now);
  if(!live){
-  const prior=await env.DB.prepare('SELECT id FROM research_results WHERE attempt_id=?').bind(id).first();if(prior)return {quarantined:true};
+  const prior=await env.DB.prepare('SELECT body FROM research_results WHERE attempt_id=?').bind(id).first<{body:string}>();
+  if(prior){const saved=JSON.parse(prior.body);requireValue(saved.hash===hash,409,'RESULT_CONFLICT','이미 접수된 결과와 다릅니다.');return saved.quarantined?{quarantined:true}:{received:true,duplicate:true}}
   await env.DB.batch([env.DB.prepare('INSERT INTO research_results VALUES(?,?,?,?)').bind(id,job.id,id,JSON.stringify({id,jobId:job.id,attemptId:id,quarantined:true,receivedAt:now,hash,payload:input})),researchEvent(env,'late_result',{jobId:job.id},company.id,{attemptId:id,hash})]);
   return {quarantined:true};
  }
- requireValue(input&&typeof input==='object'&&!Array.isArray(input),422,'INVALID_RESULT','결과 객체가 필요합니다.');
  const v=input as Record<string,unknown>,statements:D1PreparedStatement[]=[];
  let state:ResearchJob['state'],message:string;
  if(v.kind==='needs_input'){state='needs_input';message=textField(v.message,'확인 질문',4000)}
@@ -71,7 +72,10 @@ export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=
    statements.push(env.DB.prepare('INSERT INTO research_proposals VALUES(?,?,?,?)').bind(proposal.id,job.id,id,JSON.stringify(proposal)));
   }
  }
- try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,state,message,updatedAt:now}),saveAttempt(env,{...attempt,state:'closed',resultHash:hash}),...statements,env.DB.prepare("UPDATE research_outbox SET state='done' WHERE id=?").bind(job.id),researchEvent(env,'attempt_finished',{jobId:job.id},company.id,{attemptId:id,state,hash})])}catch(error){return researchConflict(error)}
+ try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,state,message,updatedAt:now}),saveAttempt(env,{...attempt,state:'closed',resultHash:hash}),...statements,env.DB.prepare("UPDATE research_outbox SET state='done' WHERE id=?").bind(job.id),researchEvent(env,'attempt_finished',{jobId:job.id},company.id,{attemptId:id,state,hash})])}catch(error){
+  if((await researchGet<ResearchAttempt>(env,'research_attempts',id)).resultHash===hash)return {received:true,duplicate:true};
+  return researchConflict(error);
+ }
  return {received:true,state};
 }
 export async function expireResearchAttempts(env:Env,now=new Date().toISOString()) {

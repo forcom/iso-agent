@@ -46,6 +46,12 @@ describe('research scheduler and server execution contract',()=>{
   }
   expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_results').first('n')).toBe(0);
  });
+ it('rejects malformed result members at the boundary and accepts concurrent duplicate submissions once',async()=>{
+  t=await createTestEnvironment();await ready();await job();const a=(await reserveResearchJob(t.bindings))!;await beginResearchJob(t.bindings,a.id);
+  for(const field of ['sources','findings','drafts','actions'])await expect(finishResearchAttempt(t.bindings,a.id,{kind:'result',result:{...resultInput.result,[field]:[null]}})).rejects.toMatchObject({status:422});
+  await expect(Promise.all([finishResearchAttempt(t.bindings,a.id,resultInput),finishResearchAttempt(t.bindings,a.id,resultInput)])).resolves.toHaveLength(2);
+  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_results').first('n')).toBe(1);
+ });
  it('quarantines late results after cancellation and holds further dispatch until external stop is verified',async()=>{
   t=await createTestEnvironment();await ready();const j=await job();const a=(await reserveResearchJob(t.bindings))!;await beginResearchJob(t.bindings,a.id);
   const actor=await t.select('admin'),detail=await (await requestResearch(t,actor,`/research/jobs/${j.id}`)).json() as any;

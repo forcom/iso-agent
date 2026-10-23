@@ -1,7 +1,7 @@
 import {readdir,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import type {Env} from '../../worker/src/types';
-/** Fresh databases only. Existing installations use the platform's tracked migrations. */
+/** Fresh databases only. Existing installations apply the additive SQL explicitly. */
 export async function installInitialSchema(db:Env['DB'],root:string){
  const dir=resolve(root,'apps/worker/migrations');
  for(const name of (await readdir(dir)).filter(name=>/^\d+_.*\.sql$/.test(name)).sort()){

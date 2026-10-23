@@ -18,7 +18,7 @@ async function definitionContext(env:Env,definition:ResearchDefinition,context:K
  if(definition.assigneeId){const person=await get<Person>(env,'persons',definition.assigneeId);requireValue(person.active&&(person.fictional!==true||env.ALLOW_FICTIONAL_PERSONNEL==='true'),422,'PERSON_INACTIVE','유효한 담당자를 선택해 주세요.')}
  return Object.fromEntries(definition.recordTypeIds.map(id=>[id,bundle.recordTypes.find(type=>type.id===id)!.templateRevisionId]));
 }
-export async function requireResearchWrite(env:Env,actor:ActorContext,definition:ResearchDefinition,context:KnowledgeContext,baseRevisionId?:string){
+export async function requireResearchWrite(env:Env,actor:ActorContext,definition:Pick<ResearchDefinition,'recordTypeIds'|'systemId'>,context:KnowledgeContext,baseRevisionId?:string){
  if(baseRevisionId){const revision=await get<Revision>(env,'revisions',baseRevisionId),artifact=await get<Artifact>(env,'artifacts',revision.artifactId);
   requireValue(artifact.kind==='record'&&artifact.workingRevisionId===revision.id&&definition.recordTypeIds.every(id=>artifact.recordTypeIds.includes(id)),409,'REVISION_CONFLICT','현행 기록과 조사 유형을 확인해 주세요.');
   await requireAuthorization(env,actor,'revise',resourceFor(artifact,revision),context);

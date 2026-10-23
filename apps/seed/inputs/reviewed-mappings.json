@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-23.1",
+  "version": "2026-10-23.2",
   "reviewedBy": "Codex 구현 검토 — 회사의 공식 승인 또는 실무 수행 증거 아님",
   "reviewedAt": "2026-10-23",
-  "reviewScope": "87개 원문 바이트·유형·목차 분류, 전체 번호 조항의 원문 경계 추출, 60개 빈 양식의 기입 구조와 근거 절차별 작성·수정·검토·승인·회람 권한·조건을 대조한 구현 검토. 실제 직원 지정·공식 회사 승인·외부 법령 현행성 검증·개별 업무의 이행 또는 적합성 판단은 포함하지 않는다. 원문 인용은 규범 정의이며 기록의 승인 사실이 아니다.",
+  "reviewScope": "87개 원문 바이트·유형·목차 분류, 전체 번호 조항의 원문 경계 추출, 60개 빈 양식의 기입 구조와 근거 절차별 작성·수정·검토·승인·회람 권한·조건을 대조한 구현 검토. 실제 직원 지정·공식 회사 승인·외부 법령 현행성 검증·개별 업무의 이행 또는 적합성 판단은 포함하지 않는다. 원문 인용은 규범 정의이며 기록의 승인 사실이 아니다. 2026-10-23 문서체계·절차서 목차·각 목적 조항·지침서 목차를 대조하여 절차서→매뉴얼 18개, 지침서→절차서 20개의 직상위 버전 관계를 추가 검토했다. 계층 관계는 권한·승인·변경 의존성·실제 이행을 자동 입증하지 않는다.",
   "sources": [
     {
       "sourceCode": "AIDU-AIM-01-01",
@@ -44485,6 +44485,1120 @@
       "evidenceStatus": "verified",
       "condition": "규정상 활동·판단의 입력 연결. 실제 기록의 충분성·승인이나 이행 완료를 뜻하지 않음.",
       "conditionStatus": "met"
+    },
+    {
+      "id": "2b294ed7-cfa2-50bc-9495-20a3ab8438ea",
+      "subjectId": "e902274d-536f-5dbe-b727-3ee5cea028c3",
+      "objectId": "7c67918f-0039-5e2e-aede-d483e9a6461b",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIP-04-01](AIDU-AIP-04-01.md) | 조직상황분석절차서 | 4.1~4.4 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 39,
+          "lineEnd": 39,
+          "quote": "| [AIDU-AIM-01-03](AIDU-AIM-01-03.md) | 인공지능경영 매뉴얼 - 조직의 상황 | 4항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "032ec3de-5bcd-5b37-9d37-331bf64c70c3",
+      "subjectId": "bff79950-a7df-5331-86fc-8f510a949ae3",
+      "objectId": "83c464b1-2408-58cd-b90e-5bf84376daf2",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIP-05-01](AIDU-AIP-05-01.md) | 리더십 및 방침관리절차서 | 5.1~5.2 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 40,
+          "lineEnd": 40,
+          "quote": "| [AIDU-AIM-01-04](AIDU-AIM-01-04.md) | 인공지능경영 매뉴얼 - 리더십 | 5항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "e3d4de50-10cf-5dcd-9f0e-3d65f4ecdc25",
+      "subjectId": "971b2ddd-c1f5-5570-a0e9-9643d794da24",
+      "objectId": "83c464b1-2408-58cd-b90e-5bf84376daf2",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 22,
+          "lineEnd": 22,
+          "quote": "| [AIDU-AIP-05-02](AIDU-AIP-05-02.md) | 인공지능경영 조직 및 역할절차서 | 5.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 40,
+          "lineEnd": 40,
+          "quote": "| [AIDU-AIM-01-04](AIDU-AIM-01-04.md) | 인공지능경영 매뉴얼 - 리더십 | 5항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "7c8167f0-e257-59d2-930b-a6fddadc195e",
+      "subjectId": "27666b29-d228-573f-b9b9-14b2b20fbf7d",
+      "objectId": "0413292e-512d-5ce1-9ffd-88c56f484980",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 23,
+          "lineEnd": 23,
+          "quote": "| [AIDU-AIP-06-01](AIDU-AIP-06-01.md) | 리스크 평가 및 처리절차서 | 6.1.1~6.1.3, 8.2~8.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 41,
+          "lineEnd": 41,
+          "quote": "| [AIDU-AIM-01-05](AIDU-AIM-01-05.md) | 인공지능경영 매뉴얼 - 기획 | 6항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "f966f6b9-af67-5aeb-9250-8a7a254c6b5c",
+      "subjectId": "27666b29-d228-573f-b9b9-14b2b20fbf7d",
+      "objectId": "86137fe8-8231-57de-a715-33b924177bf5",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 23,
+          "lineEnd": 23,
+          "quote": "| [AIDU-AIP-06-01](AIDU-AIP-06-01.md) | 리스크 평가 및 처리절차서 | 6.1.1~6.1.3, 8.2~8.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 43,
+          "lineEnd": 43,
+          "quote": "| [AIDU-AIM-01-07](AIDU-AIM-01-07.md) | 인공지능경영 매뉴얼 - 운용 | 8항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "a5efd4b1-3985-51b2-b37b-04c39be4c5ab",
+      "subjectId": "10843abc-3a7c-5071-9065-16a2082c1b94",
+      "objectId": "0413292e-512d-5ce1-9ffd-88c56f484980",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 24,
+          "lineEnd": 24,
+          "quote": "| [AIDU-AIP-06-02](AIDU-AIP-06-02.md) | 시스템 영향평가절차서 | 6.1.4, 8.4 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 41,
+          "lineEnd": 41,
+          "quote": "| [AIDU-AIM-01-05](AIDU-AIM-01-05.md) | 인공지능경영 매뉴얼 - 기획 | 6항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "9d988e31-c05c-5eb4-b1e8-e0cd6a848a3c",
+      "subjectId": "10843abc-3a7c-5071-9065-16a2082c1b94",
+      "objectId": "86137fe8-8231-57de-a715-33b924177bf5",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 24,
+          "lineEnd": 24,
+          "quote": "| [AIDU-AIP-06-02](AIDU-AIP-06-02.md) | 시스템 영향평가절차서 | 6.1.4, 8.4 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 43,
+          "lineEnd": 43,
+          "quote": "| [AIDU-AIM-01-07](AIDU-AIM-01-07.md) | 인공지능경영 매뉴얼 - 운용 | 8항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "09c5ff24-fade-5ded-99da-0acf17fddebe",
+      "subjectId": "7dd99c5f-2dd6-506f-ba36-88ba61f7e6e9",
+      "objectId": "0413292e-512d-5ce1-9ffd-88c56f484980",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 25,
+          "lineEnd": 25,
+          "quote": "| [AIDU-AIP-06-03](AIDU-AIP-06-03.md) | 목표 및 추진계획절차서 | 6.2~6.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 41,
+          "lineEnd": 41,
+          "quote": "| [AIDU-AIM-01-05](AIDU-AIM-01-05.md) | 인공지능경영 매뉴얼 - 기획 | 6항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "f3d932ed-6f1e-57bf-b261-7598bcc2cca3",
+      "subjectId": "cfcdb2b1-544e-5bf0-b7a9-99d7898a18f5",
+      "objectId": "1d6df4ed-44a6-54c8-a037-fb2c29280f7a",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 26,
+          "lineEnd": 26,
+          "quote": "| [AIDU-AIP-07-01](AIDU-AIP-07-01.md) | 시스템 자원절차서 | 7.1 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 42,
+          "lineEnd": 42,
+          "quote": "| [AIDU-AIM-01-06](AIDU-AIM-01-06.md) | 인공지능경영 매뉴얼 - 지원 | 7항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "0e42bda5-488e-548e-837a-0b7b4b7ee4ca",
+      "subjectId": "d90dac67-17f2-596e-861e-69bd5792cac2",
+      "objectId": "1d6df4ed-44a6-54c8-a037-fb2c29280f7a",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 27,
+          "lineEnd": 27,
+          "quote": "| [AIDU-AIP-07-02](AIDU-AIP-07-02.md) | 인적자원 및 교육·훈련절차서 | 7.2~7.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 42,
+          "lineEnd": 42,
+          "quote": "| [AIDU-AIM-01-06](AIDU-AIM-01-06.md) | 인공지능경영 매뉴얼 - 지원 | 7항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "abfd690f-3c2b-5dad-82cd-e6de63c884b3",
+      "subjectId": "0fb4bd03-106e-5f6b-8398-a533bb5d6724",
+      "objectId": "1d6df4ed-44a6-54c8-a037-fb2c29280f7a",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 28,
+          "lineEnd": 28,
+          "quote": "| [AIDU-AIP-07-03](AIDU-AIP-07-03.md) | 정보 및 기록관리절차서 | 7.4~7.5 (2.2 문서·유효성 관리 포함) |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 42,
+          "lineEnd": 42,
+          "quote": "| [AIDU-AIM-01-06](AIDU-AIM-01-06.md) | 인공지능경영 매뉴얼 - 지원 | 7항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "edc87192-735d-5be2-9686-9e86c2e18606",
+      "subjectId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1",
+      "objectId": "0413292e-512d-5ce1-9ffd-88c56f484980",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 29,
+          "lineEnd": 29,
+          "quote": "| [AIDU-AIP-08-01](AIDU-AIP-08-01.md) | 인공지능경영활동절차서 | 6.3, 7.4, 8.1 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 41,
+          "lineEnd": 41,
+          "quote": "| [AIDU-AIM-01-05](AIDU-AIM-01-05.md) | 인공지능경영 매뉴얼 - 기획 | 6항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "76b52a00-3b65-5324-80fb-396fbc793f17",
+      "subjectId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1",
+      "objectId": "1d6df4ed-44a6-54c8-a037-fb2c29280f7a",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 29,
+          "lineEnd": 29,
+          "quote": "| [AIDU-AIP-08-01](AIDU-AIP-08-01.md) | 인공지능경영활동절차서 | 6.3, 7.4, 8.1 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 42,
+          "lineEnd": 42,
+          "quote": "| [AIDU-AIM-01-06](AIDU-AIM-01-06.md) | 인공지능경영 매뉴얼 - 지원 | 7항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "2ccb7e94-9ea5-5fe2-9570-6539e06b118a",
+      "subjectId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1",
+      "objectId": "86137fe8-8231-57de-a715-33b924177bf5",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 29,
+          "lineEnd": 29,
+          "quote": "| [AIDU-AIP-08-01](AIDU-AIP-08-01.md) | 인공지능경영활동절차서 | 6.3, 7.4, 8.1 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 43,
+          "lineEnd": 43,
+          "quote": "| [AIDU-AIM-01-07](AIDU-AIM-01-07.md) | 인공지능경영 매뉴얼 - 운용 | 8항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "27e6c715-1ef5-5f50-ade1-92a71eaa9082",
+      "subjectId": "9d157787-d091-518c-b604-9a7548e7a293",
+      "objectId": "df63aaa0-5d01-547e-850d-30f2ac4cc485",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 30,
+          "lineEnd": 30,
+          "quote": "| [AIDU-AIP-09-01](AIDU-AIP-09-01.md) | 성과측정 및 준수평가절차서 | 9.1 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 44,
+          "lineEnd": 44,
+          "quote": "| [AIDU-AIM-01-08](AIDU-AIM-01-08.md) | 인공지능경영 매뉴얼 - 성능평가 및 개선 | 9~10항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "6980de55-e8e3-51ad-a508-be67e4245efd",
+      "subjectId": "4c97d7ea-4dee-52a7-9bce-22d900318ee7",
+      "objectId": "df63aaa0-5d01-547e-850d-30f2ac4cc485",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 31,
+          "lineEnd": 31,
+          "quote": "| [AIDU-AIP-09-02](AIDU-AIP-09-02.md) | 내부심사절차서 | 9.2 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 44,
+          "lineEnd": 44,
+          "quote": "| [AIDU-AIM-01-08](AIDU-AIM-01-08.md) | 인공지능경영 매뉴얼 - 성능평가 및 개선 | 9~10항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "e66a95fc-fafa-5746-8fd9-8a9c58a1cf9e",
+      "subjectId": "85b3b985-adf5-5b16-9d0f-4a97de99344b",
+      "objectId": "df63aaa0-5d01-547e-850d-30f2ac4cc485",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 32,
+          "lineEnd": 32,
+          "quote": "| [AIDU-AIP-09-03](AIDU-AIP-09-03.md) | 경영검토절차서 | 9.3 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 44,
+          "lineEnd": 44,
+          "quote": "| [AIDU-AIM-01-08](AIDU-AIM-01-08.md) | 인공지능경영 매뉴얼 - 성능평가 및 개선 | 9~10항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "5b8787e0-7109-57a7-a738-3b8a5f1b6f6c",
+      "subjectId": "4b8531ea-08ae-5f54-ba3e-4c4c40ebca27",
+      "objectId": "df63aaa0-5d01-547e-850d-30f2ac4cc485",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "a6e3f097-03e5-57cc-8d6f-8430d5e8b322",
+          "sourceSha256": "1d77d10ee10b721d9aef8d2f493fc5ec99eefd8832e1f5e50522ec772d3ef0dd",
+          "lineStart": 33,
+          "lineEnd": 33,
+          "quote": "| [AIDU-AIP-10-01](AIDU-AIP-10-01.md) | 지속적 개선 및 부적합 시정조치절차서 | 10.1~10.2 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 44,
+          "lineEnd": 44,
+          "quote": "| [AIDU-AIM-01-08](AIDU-AIM-01-08.md) | 인공지능경영 매뉴얼 - 성능평가 및 개선 | 9~10항 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 51,
+          "lineEnd": 51,
+          "quote": "| 절차서 | 매뉴얼의 요구사항을 충족하기 위한 회사 내 절차·프로세스 및 문서 양식 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "a188930a-168a-5e2d-8c4b-226816e7c571",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "e902274d-536f-5dbe-b727-3ee5cea028c3",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "bf9d28b0-f1ff-5596-8a06-a0aba00bc9f4",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "bff79950-a7df-5331-86fc-8f510a949ae3",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "4bc2e46a-4d2f-5ea4-b036-c7635337513e",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "971b2ddd-c1f5-5570-a0e9-9643d794da24",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "a0bb1f44-cb01-550d-b8ed-c107126fc868",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "27666b29-d228-573f-b9b9-14b2b20fbf7d",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "28e36da6-0310-5651-b647-73fa89138eb0",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "10843abc-3a7c-5071-9065-16a2082c1b94",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "77e611a2-72b4-5a88-93a8-c0386befbb6f",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "7dd99c5f-2dd6-506f-ba36-88ba61f7e6e9",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "abbfda13-40ce-56e0-bc20-982930a78f0b",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "cfcdb2b1-544e-5bf0-b7a9-99d7898a18f5",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "343d73da-33f4-5ad6-b63d-901e066723ac",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "d90dac67-17f2-596e-861e-69bd5792cac2",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "c8f636a3-4fe7-5d5f-b981-1ceb5629e781",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "0fb4bd03-106e-5f6b-8398-a533bb5d6724",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "6b5b7b1e-8f5d-5a86-be4c-27de24a151e1",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "0754880c-b7b9-54cf-9fe6-de6755a29fb3",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "9d157787-d091-518c-b604-9a7548e7a293",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "43964e3d-c395-59e1-b088-c4dcf1171be8",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "4c97d7ea-4dee-52a7-9bce-22d900318ee7",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "00e94364-584c-5f51-a526-743d7c1bba1d",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "85b3b985-adf5-5b16-9d0f-4a97de99344b",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "1c26bfa5-f7cc-59d7-a807-8974c8cc6e03",
+      "subjectId": "e4ab34fb-68e2-5d8b-a452-de65666bc884",
+      "objectId": "4b8531ea-08ae-5f54-ba3e-4c4c40ebca27",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 20,
+          "lineEnd": 20,
+          "quote": "| [AIDU-AIG-08-01](AIDU-AIG-08-01.md) | 인공지능경영활동관리규정 | 매뉴얼 4~10항 전반<br>AIDU-AIP-04-01~AIDU-AIP-10-01 | 조직상황·법령 자료 수집, 리스크·적용성 기술서(SoA)·영향평가 실무 작성, 역할·목표·교육·문서 관리, 공급자·고객 자료 검토, 연간 통합 점검·심사·경영검토·시정조치 및 불만·사건 연계 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "b45bbb48-a424-5860-b52c-d838f26cfb9d",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "cfcdb2b1-544e-5bf0-b7a9-99d7898a18f5",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "54e59b13-f182-5174-833b-6044125ca8eb",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "d90dac67-17f2-596e-861e-69bd5792cac2",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "c131004d-8867-5a4c-9fd8-04b7f1027396",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "0fb4bd03-106e-5f6b-8398-a533bb5d6724",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "e1099ef1-cee4-5dcb-8d2e-5dcca26f6ca4",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "5ace890f-52e4-5147-933f-0e8bce3d9ee1",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "e93984a2-b365-5aa0-a66d-f48aa0c72220",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "9d157787-d091-518c-b604-9a7548e7a293",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
+    },
+    {
+      "id": "439985fa-a2f0-5659-adde-468a033bc23b",
+      "subjectId": "1d4f9178-67ee-5f6d-b80c-5f8a546e39cf",
+      "objectId": "4b8531ea-08ae-5f54-ba3e-4c4c40ebca27",
+      "type": "subordinate_to",
+      "origin": "regulation",
+      "evidenceRefs": [
+        {
+          "revisionId": "bf0e1535-b2f0-5321-814f-0e2b029ff41c",
+          "sourceSha256": "04c3a25ce017e4b203439da7c22207fcb775e805effdf8c0aa36f80d6b39ab7a",
+          "lineStart": 21,
+          "lineEnd": 21,
+          "quote": "| [AIDU-AIG-08-02](AIDU-AIG-08-02.md) | 시스템 수명 주기 및 데이터 관리지침서 | 매뉴얼 6~9항<br>AIDU-AIP-07-01~AIDU-AIP-09-01, AIDU-AIP-10-01 | 요구사항·설계 명세, 데이터 품질 점검·가명처리·분할, 외부 API 통합·실험 관리, 확인·타당성 검증 및 지표 산출, 고지·인간 감독 시험, 배포·운영 모니터링·변경·복구, 이의제기 기술 정정·보유 만료 삭제·서비스 종료 |"
+        },
+        {
+          "revisionId": "c25e1219-f34b-5f0c-9329-1a1d92b0fdcc",
+          "sourceSha256": "7b87989967574baa57df53a043d4645b7c69f36284dedc1ca8b392981f2f688b",
+          "lineStart": 52,
+          "lineEnd": 52,
+          "quote": "| 지침서 | 절차서의 실행에 필요한 세부 실무 절차 및 문서 |"
+        }
+      ],
+      "releaseId": "",
+      "reviewStatus": "validated",
+      "evidenceStatus": "verified"
     }
   ],
   "assessmentTargets": [

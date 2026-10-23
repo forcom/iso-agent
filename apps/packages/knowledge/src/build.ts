@@ -1,5 +1,6 @@
 import type { BuildInput, Entity, EvidenceRef, KnowledgeBundle, Relation, SourceRevision, ValidationReport } from "../../contracts/src/index";
 import { checkBundle } from "./validate";
+import { REGULATION_HIERARCHY } from "../../ontology/src/index";
 
 export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -50,8 +51,9 @@ export async function buildRelease(input: BuildInput): Promise<KnowledgeBundle> 
     const lines = source.markdown.split("\n");
     const ref = (start: number, end: number): EvidenceRef => ({ revisionId: source.revisionId, sourceSha256: source.sha256, lineStart: start, lineEnd: end, quote: lines.slice(start - 1, end).join("\n") });
     const artifactKind = source.kind === "template" ? "template" : "regulation";
-    entities.push({ id: source.artifactId, type: source.kind === "template" ? "Template" : "Regulation", label: source.title, evidenceRefs: [], metadata: { documentCode: source.code, artifactKind, regulationType: source.kind, effectiveRevisionId: source.revisionId } });
-    entities.push({ id: source.revisionId, type: "ArtifactRevision", label: `${source.code} 원문`, evidenceRefs: [], metadata: { artifactId: source.artifactId, artifactKind, sha256: source.sha256, sourcePath: source.path } });
+    const hierarchy = source.kind === "template" ? {} : { hierarchyLevel: REGULATION_HIERARCHY[source.kind].level };
+    entities.push({ id: source.artifactId, type: source.kind === "template" ? "Template" : "Regulation", label: source.title, evidenceRefs: [], metadata: { documentCode: source.code, artifactKind, regulationType: source.kind, ...hierarchy, effectiveRevisionId: source.revisionId } });
+    entities.push({ id: source.revisionId, type: "ArtifactRevision", label: `${source.code} 원문`, evidenceRefs: [], metadata: { artifactId: source.artifactId, artifactKind, regulationType: source.kind, ...hierarchy, sha256: source.sha256, sourcePath: source.path } });
     await relation(source.artifactId, "has_revision", source.revisionId, [ref(1, 1)], "explicit_metadata");
     const mapping = mappings.sources.find(item => item.sourceCode === source.code);
     const claims: KnowledgeBundle["wiki"][number]["claims"] = [];

@@ -6,7 +6,7 @@ import {requireValue} from '../lib/errors';
 export const artifactRoutes=new Hono<AppEnv>();
 artifactRoutes.get('/artifacts',async c=>{
  let items=await all<Artifact>(c.env,'artifacts');const {category,kind,q}=c.req.query();
- if(category==='documents')items=items.filter(a=>a.kind!=='record');if(category==='records')items=items.filter(a=>a.kind==='record');if(kind)items=items.filter(a=>a.kind===kind.toLowerCase());if(q)items=items.filter(a=>(a.title+' '+a.documentCode).toLowerCase().includes(q.toLowerCase()));return c.json({items});
+ if(category==='documents')items=items.filter(a=>a.kind!=='record');if(category==='records')items=items.filter(a=>a.kind==='record');if(kind)items=items.filter(a=>a.kind===kind.toLowerCase()||a.kind==='regulation'&&a.regulationType===kind.toLowerCase());if(q)items=items.filter(a=>(a.title+' '+a.documentCode).toLowerCase().includes(q.toLowerCase()));return c.json({items});
 });
 async function detail(env:AppEnv['Bindings'],id:string){
  const artifact=await get<Artifact>(env,'artifacts',id);

@@ -1,9 +1,11 @@
+import type { RegulationType } from '../../packages/contracts/src/index';
+
 export type Item = { id: string; title?: string; name?: string; label?: string; kind?: string; type?: string; [key: string]: unknown };
 export type Evidence = { id?: string; artifactId?: string; revisionId: string; sourceHash?: string; sourceSha256?: string; quote?: string; lineStart?: number; lineEnd?: number; [key: string]: unknown };
 export type Context = { releaseId: string | null; dataRevision: number; authorityRevision?: number; rulesHash?: string };
 export type Person = { id?: string; personId?: string; name: string; active: boolean; isAdmin?: boolean; fictional?: boolean; personaId?:string; department?:string; jobTitle?:string };
 export type Me = { actor: Person | null; roles: Item[]; context: Context | null; sessionVersion: number; identityNotice?:string };
-export type Artifact = Item & { documentCode: string; kind: string; recordTypeId?: string; recordTypeIds?: string[]; systemIds?: string[]; workingRevisionId?: string; effectiveRevisionId?: string };
+export type Artifact = Item & { documentCode: string; kind: string; regulationType?: RegulationType; recordTypeId?: string; recordTypeIds?: string[]; systemIds?: string[]; workingRevisionId?: string; effectiveRevisionId?: string };
 export type Revision = Item & { artifactId: string; state?: string; status?: string; sourceHash?: string; sourceSha256?: string; createdAt?: string; evidenceStatus?: string };
 export type Action = { action: string; allowed: boolean; reason?: string; policyIds: string[]; evidenceRefs: Evidence[] };
 export type ActionSet = { conditions?: {field: string; kind?: 'person' | 'people'; reason: string; evidenceRefs: Evidence[]; value: boolean | string | string[] | null}[]; actions: Action[]; context: Context; revisionId: string; revisionVersion: string; state: string };

@@ -63,6 +63,13 @@ export function rebaseMappings(base: ReviewedMappings, sources: SourceRevision[]
     return touched;
   };
   rebase(mappings.roles); rebase(mappings.policies); rebase(mappings.recordTypes); rebase(mappings.productPolicies); rebase(mappings.relations);
+  for (const relation of mappings.relations ?? []) if (relation.type === "subordinate_to") {
+    // Endpoint changes need review even when the hierarchy is quoted from an unchanged third document.
+    for (const key of ["subjectId", "objectId"] as const) {
+      const source = changed.get(relation[key]);
+      if (source) { relation[key] = source.revisionId; relation.reviewStatus = "candidate"; }
+    }
+  }
   for (const type of mappings.recordTypes) {
     const template = sources.find(source => source.artifactId === type.templateArtifactId);
     if (template && template.revisionId !== type.templateRevisionId) { type.templateRevisionId = template.revisionId; type.reviewStatus = "candidate"; }

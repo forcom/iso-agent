@@ -1,6 +1,11 @@
 import type { ActionPolicy, ArtifactId, ArtifactRegistry, EntityType, EvidenceRef, KnowledgeInput, RelationType, SourceRevision, ValidationIssue, ValidationReport } from "../../contracts/src/index";
 
-export const SCHEMA_VERSION = "2.0.0";
+export const SCHEMA_VERSION = "2.1.0";
+export const REGULATION_HIERARCHY = {
+  manual: { level: 1, label: "매뉴얼", purpose: "준수 요구사항과 기본 책임·권한", parentType: null },
+  procedure: { level: 2, label: "절차서", purpose: "매뉴얼 요구사항을 수행하는 절차·프로세스", parentType: "manual" },
+  guide: { level: 3, label: "지침서", purpose: "절차 실행에 필요한 세부 실무 방법", parentType: "procedure" },
+} as const;
 type RelationDefinition = { subject: EntityType[]; object: EntityType[]; transitive: boolean; cycles: boolean; evidence: "source_or_registration" | "source" | "event" };
 const artifact: EntityType[] = ["Regulation", "Template", "Record"];
 const revision: EntityType[] = ["ArtifactRevision"];
@@ -16,6 +21,7 @@ export const RELATIONS: Record<RelationType, RelationDefinition> = {
   record_of_type: { subject: ["Record"], object: ["RecordType"], transitive: false, cycles: false, evidence: "source_or_registration" },
   evidence_candidate_for: { subject: revision, object: ["Requirement", "ActivityDefinition"], transitive: false, cycles: false, evidence: "source" },
   references: { subject: revision, object: [...artifact, ...revision], transitive: false, cycles: true, evidence: "source" },
+  subordinate_to: { subject: revision, object: revision, transitive: false, cycles: false, evidence: "source" },
   change_depends_on: { subject: dependent, object: dependent, transitive: true, cycles: true, evidence: "source" },
   about_system: { subject: [...revision, "ActivityDefinition"], object: ["AISystem"], transitive: false, cycles: false, evidence: "source_or_registration" },
   assignment_person: { subject: ["RoleAssignment"], object: ["Person"], transitive: false, cycles: false, evidence: "event" },
@@ -27,7 +33,7 @@ export const RELATIONS: Record<RelationType, RelationDefinition> = {
   supersedes: { subject: revision, object: revision, transitive: false, cycles: false, evidence: "event" },
 };
 export const SEPARATION_CONDITIONS = ["none", "not_requester", "not_author", "not_reviewer", "not_implementer", "independent_auditor"] as const;
-export const KNOWLEDGE_SCHEMA = { separationConditions: SEPARATION_CONDITIONS, assessmentTargets: { type: "AISystem", origin: "product_policy", actualOperation: false, scopeStatus: "unconfirmed" }, version: SCHEMA_VERSION, relations: RELATIONS, commonReadOrigin: "product_policy", approvalsTransferBetweenRevisions: false, roleNamesGrantAuthority: false };
+export const KNOWLEDGE_SCHEMA = { regulationHierarchy: REGULATION_HIERARCHY, separationConditions: SEPARATION_CONDITIONS, assessmentTargets: { type: "AISystem", origin: "product_policy", actualOperation: false, scopeStatus: "unconfirmed" }, version: SCHEMA_VERSION, relations: RELATIONS, commonReadOrigin: "product_policy", approvalsTransferBetweenRevisions: false, roleNamesGrantAuthority: false };
 const issue = (code: string, path: string, message: string): ValidationIssue => ({ code, path, message });
 const report = (errors: ValidationIssue[]): ValidationReport => ({ valid: errors.length === 0, errors, warnings: [] });
 
@@ -89,6 +95,13 @@ export function validateKnowledge(input: KnowledgeInput): ValidationReport {
     if (!definition.cycles && relation.subjectId === relation.objectId) errors.push(issue("relation_cycle", relation.id, "Self-cycle is not allowed"));
     if (definition.evidence === "source" && !relation.evidenceRefs.length && relation.origin !== "product_policy") errors.push(issue("missing_evidence", relation.id, "Regulatory relation requires source evidence"));
     if (relation.type === "change_depends_on" && relation.origin === "reference_extraction") errors.push(issue("reference_not_dependency", relation.id, "A document reference is not change dependency evidence"));
+    if (relation.type === "subordinate_to") {
+      const child = input.sources.find(source => source.revisionId === relation.subjectId);
+      const parent = input.sources.find(source => source.revisionId === relation.objectId);
+      if (subject?.type !== "ArtifactRevision" || object?.type !== "ArtifactRevision" || !child || !parent || !(child.kind === "procedure" && parent.kind === "manual" || child.kind === "guide" && parent.kind === "procedure")) errors.push(issue("invalid_hierarchy", relation.id, "Hierarchy requires procedure → manual or guide → procedure source revisions"));
+      if (relation.origin !== "regulation" || !relation.evidenceRefs.length) errors.push(issue("hierarchy_evidence", relation.id, "Hierarchy requires explicit regulatory evidence, not a reference or product policy"));
+      if (relation.reviewStatus !== "validated") errors.push(issue("unreviewed_hierarchy", relation.id, "Hierarchy must be reviewed for these exact revisions"));
+    }
     if (relation.type === "uses_template" && (subject?.metadata?.artifactKind !== "record" || object?.metadata?.artifactKind !== "template")) errors.push(issue("template_revision_type", relation.id, "uses_template must connect a record revision to a template revision"));
     if (relation.type === "supersedes" && subject?.metadata?.artifactId !== object?.metadata?.artifactId) errors.push(issue("cross_artifact_revision", relation.id, "Version replacement cannot cross logical artifacts"));
     evidence(relation.evidenceRefs, relation.id);

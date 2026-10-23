@@ -54,6 +54,8 @@ pnpm build
 
 빌드는 `output/build/worker/`에 생성된다. 빌드에 임시 복사된 `.dev.vars`는 빌드 명령이 제거한다. 배포 번들·로그·로컬 비밀 파일은 공개 산출물로 취급하지 않는다.
 
+권한 기대값은 매뉴얼·절차서·지침서의 관련 조항 전체를 근거로 판단한다. 다른 조항이 뒷받침하는 조건부 상향 승인과 업무 책임자의 규정상 승인 범위를 인정한다. [2026-10-24 범위 개정](https://github.com/forcom/iso-agent/issues/13#issuecomment-6368489757)에 따라 다른 사람의 권한을 위임받아 행사하는 기능은 현재 지원하지 않는다. 위임 지정은 생성·적용·초기 설치에서 거부하고 과거 위임 지정도 유효 권한 및 관리자 자격에 반영하지 않는다. 원문의 위임·대리 내용과 과거 이력은 보존한다.
+
 ## 원격 데모 배포
 
 `apps/worker/wrangler.toml`은 전용 Worker `iso-agent-demo`, D1 `iso-agent-demo`, R2 `iso-agent-demo-sources`, PyreWire Container를 연결한다. 로컬 DB 및 기존 다른 서비스의 자원과 분리한다. 직원 드롭다운은 인증 수단이 아니므로 데모에 실제 개인정보·업무 기록을 등록하지 않는다.

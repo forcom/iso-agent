@@ -3,7 +3,7 @@ import { canonical } from '../../../packages/knowledge/src/index';
 import type { Artifact, Env, Revision } from '../types';
 import { all, assertContext,assertExpectedContext, commitMutation, event, get, getBundle, getKnowledgeContext, replay, update } from './storage';
 import { readRevision, resourceFor } from './artifacts';
-import { requireAuthorization, snapshot } from './engine';
+import { requireAuthorization } from './engine';
 import { ApiError, requireValue, textField } from './errors';
 import { appointmentSourceCandidates, candidateId, cells } from './appointment-source';
 import { requestHash } from './requests';
@@ -28,7 +28,6 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
  const [persons,artifacts]=await Promise.all([all<Person>(env,'persons'),all<Artifact>(env,'artifacts')]);
  const sourceCandidates=await appointmentSourceCandidates(markdown,revision,persons);
  const machineAssignments=async()=>{
- let effectiveAssignments:RoleAssignment[]|undefined;
  const assignments:RoleAssignment[]=[];let header:string[]|undefined;let fence:string|undefined;
  const lines=markdown.split('\n');
  for(let index=0;index<lines.length;index++){
@@ -63,17 +62,7 @@ async function appointmentCandidates(env:Env,revisionId:string,context:Knowledge
   requireValue(new Set(ids).size===ids.length&&ids.every(Boolean)&&(row.scopeKind==='all'?ids.length===0:ids.length>0),422,'INVALID_ASSIGNMENT_SCOPE','전체 범위는 ID를 비우고, 한정 범위는 중복 없는 대상 ID를 지정해 주세요.');
   if(row.scopeKind==='system')requireValue(ids.every(id=>bundle.entities.some(entity=>entity.id===id&&entity.type==='AISystem')),422,'UNKNOWN_ASSIGNMENT_SCOPE','등록된 시스템 ID가 필요합니다.');
   if(row.scopeKind==='resource')requireValue(ids.every(id=>artifacts.some(artifact=>artifact.id===id)),422,'UNKNOWN_ASSIGNMENT_SCOPE','등록된 자료 ID가 필요합니다.');
-  if(row.delegatedFromAssignmentId){
-   effectiveAssignments??=(await snapshot(env,context)).assignments;
-   let parentId=row.delegatedFromAssignmentId;const visited=new Set<string>();
-   while(parentId){
-    requireValue(!visited.has(parentId),422,'DELEGATION_CYCLE','순환 위임은 적용할 수 없습니다.');visited.add(parentId);
-    const parent=effectiveAssignments.find(item=>item.id===parentId);
-    requireValue(parent&&parent.status==='active'&&parent.roleId===row.roleId&&persons.some(person=>person.id===parent.personId&&person.active)&&timestamp(parent.validFrom)<=start&&(!parent.validUntil||end<=timestamp(parent.validUntil)),422,'INVALID_DELEGATION','기존 유효 지정의 근거·역할·기간 안에서만 위임할 수 있습니다.');
-    requireValue(parent.scope.kind==='all'||parent.scope.kind===row.scopeKind&&ids.every(id=>parent.scope.ids.includes(id)),422,'DELEGATION_SCOPE_EXCEEDED','위임 범위는 기존 지정 범위를 넓힐 수 없습니다.');
-    parentId=parent.delegatedFromAssignmentId??'';
-   }
-  }
+  requireValue(!row.delegatedFromAssignmentId,422,'DELEGATION_NOT_SUPPORTED','위임 권한은 현재 시스템에서 지원하지 않습니다.');
   const assignment:RoleAssignment={id:await candidateId(revision.id,index+1,line),personId:row.personId,roleId:row.roleId,validFrom:row.validFrom,...(row.validUntil?{validUntil:row.validUntil}:{}),scope:{kind:row.scopeKind as RoleAssignment['scope']['kind'],ids},approvedRevisionId:revision.id,approvalDecisionId:decision.id,evidenceRefs:[{revisionId:revision.id,sourceSha256:revision.sourceSha256,lineStart:index+1,lineEnd:index+1,quote:line}],status:status as RoleAssignment['status'],...(row.replacesAssignmentId?{replacesAssignmentId:row.replacesAssignmentId}:{}),...(row.grantsAdmin?{grantsAdmin:row.grantsAdmin==='true'}:{}),...(row.delegatedFromAssignmentId?{delegatedFromAssignmentId:row.delegatedFromAssignmentId}:{})};
   assignments.push(assignment);
  }

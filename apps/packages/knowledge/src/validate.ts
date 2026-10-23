@@ -58,6 +58,7 @@ export function validateDeploymentPreparation(input: DeploymentPreparation): Val
   const operator = input.operatorDesignation;
   if (!operator || !people.has(operator.personId) || !operator.evidenceId || !Number.isFinite(Date.parse(operator.designatedAt))) fail("operator_unassigned", "operatorDesignation", "An explicit operator designation with evidence is required; no fictional people are created");
   for (const assignment of input.assignments) {
+    if (assignment.delegatedFromAssignmentId) fail("delegation_not_supported", assignment.id, "Delegated authority is outside the current system scope");
     if (assignment.approvalDecisionId) fail("external_designation_only", assignment.id, "Initial external designation must use confirmed external approval evidence, never an unrecorded application decision");
     if (!people.has(assignment.personId) || !assignment.approvedRevisionId || !assignment.evidenceRefs.length || !Number.isFinite(Date.parse(assignment.validFrom))) fail("assignment_evidence", assignment.id, "Role assignment needs confirmed person, approved evidence, period and scope");
     if (assignment.validUntil && Date.parse(assignment.validUntil) <= Date.parse(assignment.validFrom)) fail("assignment_period", assignment.id, "Role assignment end must follow its start");

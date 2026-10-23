@@ -259,6 +259,9 @@ def authorize(request):
                         insert('person_conflict', separation, person)
         for assignment in assignments.values():
             id = assignment['id']
+            if assignment.get('delegatedFromAssignmentId'):
+                reasons.append({'id': id, 'reason': 'DELEGATION_NOT_SUPPORTED'})
+                continue
             if assignment.get('status') != 'active' or not assignment.get('approvedRevisionId') or not evidence_valid(assignment.get('evidenceRefs')):
                 reasons.append({'id': id, 'reason': 'ASSIGNMENT_NOT_VERIFIED'})
                 continue
@@ -273,10 +276,7 @@ def authorize(request):
             insert('assignment_scope', id, scope['kind'])
             for value in scope['ids']:
                 insert('assignment_scope_id', id, value)
-            if assignment.get('delegatedFromAssignmentId'):
-                insert('delegated', id, assignment['delegatedFromAssignmentId'])
-            else:
-                insert('assignment_root', id)
+            insert('assignment_root', id)
         for policy in policies.values():
             id = policy['id']
             product_policy = policy.get('origin') == 'product_policy' and any(

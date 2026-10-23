@@ -41,9 +41,9 @@ export async function appointmentSourceCandidates(markdown:string,revision:Revis
   const blockedReason=excluded?'요약표에 지정 불요·비해당으로 기재되어 있습니다.':duplicate?'상세표의 중복 항목·열을 확인해야 합니다.':!personIds.length?'담당자 이름과 일치하는 활성 직원이 없습니다.':/후보 지정|미충족|교육 이수 후|교육 이수 확인|완료 시|확인 후|충족 시/.test([roleText,scopeText,periodText,fields.get('요구 역량·충족 증거')].join(' '))?'후보 지정 또는 미충족 조건이 있어 적용할 수 없습니다.':/지정 보류|미확정|해당 없음/.test(personText+' '+scopeText)?'지정 여부·범위가 확정되지 않았습니다.':!roleText||!scopeText||!definitePeriod||!validFrom||dates.some(date=>!date)||dates.length>2||(dates.length===2&&!validUntil)||(/해제/.test(periodText)&&!validUntil&&!/해제일 없음/.test(periodText))?'명확한 역할·범위·지정 기간이 필요합니다.':validUntil&&validUntil<=validFrom?'해제일이 지정일 이후여야 합니다.':undefined;
   const base={sectionId:heading[1],label:heading[2],personText,roleText,scopeText,periodText,personIds,validFrom,validUntil,evidenceRefs};
   candidates.push({...base,id:await candidateId(revision.id,start+1,quote),kind:'appointment',...(blockedReason?{blockedReason}:{})});
-  // shortcut: 한글 대리는 별도 검증한 지정 기록으로 적용; 명시적 위임 기간·범위가 있는 문서 지원 시 확장한다.
+  // Preserve the source statement while delegation is outside the current system scope.
   const deputy=fields.get('↳ 대리자·역할');
-  if(deputy&&!/해당 없음|대리 불가/.test(deputy))candidates.push({...base,id:await candidateId(revision.id,start+1,quote+'\ndelegation'),kind:'delegation',personText:deputy,periodText:fields.get('↳ 대리 시작일·종료일·범위')??'',personIds:persons.filter(person=>person.active&&hasName(deputy,person.name)).map(person=>person.id),blockedReason:'대리의 정확한 기간·범위와 기존 위임 근거를 확인한 별도 지정 기록이 필요합니다.'});
+  if(deputy&&!/해당 없음|대리 불가/.test(deputy))candidates.push({...base,id:await candidateId(revision.id,start+1,quote+'\ndelegation'),kind:'delegation',personText:deputy,periodText:fields.get('↳ 대리 시작일·종료일·범위')??'',personIds:persons.filter(person=>person.active&&hasName(deputy,person.name)).map(person=>person.id),blockedReason:'위임·대리 권한은 현재 시스템에서 지원하지 않습니다. 원문 근거만 표시합니다.'});
   start=end-1;
  }
  return candidates;

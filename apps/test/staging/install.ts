@@ -1,3 +1,4 @@
+import {installInitialSchema} from '../../seed/scripts/schema';
 import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {installRelease} from '../../worker/src/lib/installation';
@@ -12,8 +13,7 @@ try{
  const {env,config}=platform;
  const occupied=await env.DB.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='table' AND name='context'").first<number>('n');
  if(!occupied){
-  const migration=await readFile(resolve(repoRoot,'apps/worker/migrations/0001_erp.sql'),'utf8');
-  for(const sql of migration.split('-- statement-breakpoint').map(s=>s.trim()).filter(Boolean))await env.DB.prepare(sql).run();
+  await installInitialSchema(env.DB,repoRoot);
  }
  const markdown='# Synthetic external designation\nSynthetic author, reviewer, approver, director and admin assignments.\n';
  const hash=await sha256(markdown),revisionId='g10-designation-revision',at='2026-01-01T00:00:00Z';

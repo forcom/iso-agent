@@ -8,7 +8,7 @@ export interface MaintenanceTarget {environment:'local'|'demo'|'staging'|'test';
 type Row=Record<string,string|number|null>;
 type SchemaRow={type:string;name:string;sql:string};
 type StoredObject={key:string;sha256:string;bytes:string;customMetadata?:Record<string,string>;httpMetadata?:Record<string,unknown>};
-const columns={context:['id','release_id','rules_hash','data_revision','authority_revision'],persons:['id','body'],sessions:['id','person_id','version','updated_at'],artifacts:['id','document_code','kind','body'],revisions:['id','artifact_id','body'],relations:['id','body'],decisions:['id','revision_id','body'],circulations:['id','revision_id','body'],receipts:['id','circulation_id','person_id','kind','body'],events:['id','artifact_id','body'],assignments:['id','body'],releases:['id','object_key','body'],regulation_changes:['id','body'],mutation_requests:['actor_id','request_key','payload_hash','result','session_id','session_version','release_id','data_revision','authority_revision','rules_hash','created_at']} as const;
+const columns={context:['id','release_id','rules_hash','data_revision','authority_revision'],persons:['id','body'],sessions:['id','person_id','version','updated_at'],artifacts:['id','document_code','kind','body'],revisions:['id','artifact_id','body'],relations:['id','body'],decisions:['id','revision_id','body'],circulations:['id','revision_id','body'],receipts:['id','circulation_id','person_id','kind','body'],events:['id','artifact_id','body'],assignments:['id','body'],releases:['id','object_key','body'],regulation_changes:['id','body'],mutation_requests:['actor_id','request_key','payload_hash','result','session_id','session_version','release_id','data_revision','authority_revision','rules_hash','created_at'],research_connection:['id','version','body'],research_schedules:['id','version','next_at','enabled','body'],research_jobs:['id','version','state','created_at','schedule_id','slot','body'],research_attempts:['id','job_id','state','expires_at','body'],research_outbox:['id','state','event_id','body'],research_results:['id','job_id','attempt_id','body'],research_proposals:['id','job_id','result_id','body'],research_adoptions:['id','artifact_id','revision_id','body']} as const;
 type Table=keyof typeof columns;
 const tables=Object.keys(columns) as Table[];
 type Tables=Record<Table,Row[]>;
@@ -20,15 +20,17 @@ const sorted=<T>(rows:T[])=>rows.sort((a,b)=>canonical(a).localeCompare(canonica
 const digest=(value:unknown)=>sha256(canonical(value));
 const databaseHash=(data:{tables:Tables;schema:SchemaRow[]})=>digest({tables:data.tables,schema:data.schema});
 function targetMatches(a:MaintenanceTarget,b:MaintenanceTarget){check(canonical(a)===canonical(b),'Maintenance target mismatch')}
-async function requiredTriggers(){return (await readFile(new URL('../../worker/migrations/0001_erp.sql',import.meta.url),'utf8')).split('-- statement-breakpoint').map(sql=>sql.trim()).filter(sql=>sql.startsWith('CREATE TRIGGER'))}
+async function requiredTriggers(research:boolean){const files=['0001_erp.sql',...(research?['0002_research.sql']:[])];return (await Promise.all(files.map(name=>readFile(new URL(`../../worker/migrations/${name}`,import.meta.url),'utf8')))).flatMap(sql=>sql.split('-- statement-breakpoint').map(sql=>sql.trim()).filter(sql=>sql.startsWith('CREATE TRIGGER')))}
 const normalizedSql=(sql:string)=>sql.replace(/\s+/g,' ').replace(/;$/,'').trim();
 async function readDatabase(env:Env){
- const queries=[...tables.map(table=>env.DB.prepare(`SELECT * FROM ${table}`)),env.DB.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations' ORDER BY type,name")];
+ const present=new Set((await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>()).results.map(row=>row.name));
+ const selected=tables.filter(table=>present.has(table));
+ const queries=[...selected.map(table=>env.DB.prepare(`SELECT * FROM ${table}`)),env.DB.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations' ORDER BY type,name")];
  const result=await env.DB.batch(queries);check(result.every(item=>item.success),'Database snapshot failed');
- const data=Object.fromEntries(tables.map((table,i)=>[table,sorted(result[i].results as Row[])])) as Tables,schema=sorted(result.at(-1)!.results as SchemaRow[]);
+ const data=Object.fromEntries(tables.map(table=>[table,present.has(table)?sorted(result[selected.indexOf(table)].results as Row[]):[]])) as Tables,schema=sorted(result.at(-1)!.results as SchemaRow[]);
  check(data.context.length===1&&data.context[0].id===1,'Installed context required');
  check(schema.filter(row=>row.type==='table').every(row=>tables.includes(row.name as Table)),'Unknown application table; maintenance must be updated before proceeding');
- for(const sql of await requiredTriggers())check(schema.some(row=>row.type==='trigger'&&normalizedSql(row.sql)===normalizedSql(sql)),`Required immutable/fence trigger missing or changed: ${sql.split(' ')[2]}`);
+ for(const sql of await requiredTriggers(present.has('research_connection')))check(schema.some(row=>row.type==='trigger'&&normalizedSql(row.sql)===normalizedSql(sql)),`Required immutable/fence trigger missing or changed: ${sql.split(' ')[2]}`);
  return {tables:data,schema};
 }
 async function objectKeys(env:Env){let cursor:string|undefined;const keys:string[]=[];do{const page=await env.SOURCES.list({cursor});keys.push(...page.objects.map(object=>object.key));cursor=page.truncated?page.cursor:undefined}while(cursor);return keys.sort()}
@@ -91,7 +93,9 @@ function restoredRegulations(current:MaintenanceSnapshot,baseline:MaintenanceSna
 export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:MaintenanceSnapshot,operation:MaintenancePlan['operation'],snapshot?:MaintenanceSnapshot):Promise<MaintenancePlan>{
  check(operation==='reset-business'||operation==='restore-release','Unknown maintenance operation');targetMatches(target,baseline.target);await verifySnapshot(baseline);
  if(snapshot){targetMatches(target,snapshot.target);await verifySnapshot(snapshot)}
- const current=snapshot??await snapshotMaintenance(env,target),keep=await preservation(current,baseline),deleteRows=Object.fromEntries(tables.map(table=>[table,[] as string[]])) as Record<Table,string[]>,replaceRows=Object.fromEntries(tables.map(table=>[table,[] as Row[]])) as Record<Table,Row[]>;
+ const current=snapshot??await snapshotMaintenance(env,target);
+ check(!tables.some(table=>table.startsWith('research_')&&table!=='research_connection'&&current.tables[table]?.length),'Existing research work requires a dedicated retention plan before business maintenance');
+ const keep=await preservation(current,baseline),deleteRows=Object.fromEntries(tables.map(table=>[table,[] as string[]])) as Record<Table,string[]>,replaceRows=Object.fromEntries(tables.map(table=>[table,[] as Row[]])) as Record<Table,Row[]>;
  check(canonical(current.tables.persons.map(row=>row.id).sort())===canonical(baseline.tables.persons.map(row=>row.id).sort()),'Personnel membership changed; reconcile before reset');
  const staffing=(rows:Row[])=>sorted(rows.map(row=>{const {isAdmin:_admin,adminAssignmentId:_assignment,...person}=body(row);return person}));
  check(canonical(staffing(current.tables.persons))===canonical(staffing(baseline.tables.persons)),'Personnel configuration changed; reconcile staff changes before maintenance');
@@ -128,7 +132,7 @@ function guards(env:Env,current:{tables:Tables;schema:SchemaRow[]}){
  // Every application write except session selection advances the context row; per-table counts catch other writers.
  // ponytail: count+context fence, not per-row content; add a row-hash column if non-app writers must be fenced exactly.
  const context=current.tables.context[0];guard(`NOT EXISTS(SELECT 1 FROM context WHERE ${columns.context.map(name=>`${name} IS ?`).join(' AND ')})`,columns.context.map(name=>context[name]));
- for(const table of tables)guard(`(SELECT COUNT(*) FROM ${table})<>?`,[current.tables[table].length]);
+ for(const table of tables.filter(table=>current.schema.some(row=>row.type==='table'&&row.name===table)))guard(`(SELECT COUNT(*) FROM ${table})<>?`,[current.tables[table].length]);
  guard("(SELECT COUNT(*) FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations')<>?",[current.schema.length]);
  for(const row of current.schema)guard('NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type=? AND name=? AND sql=?)',[row.type,row.name,row.sql]);return statements;
 }
@@ -162,7 +166,7 @@ export async function restoreMaintenanceBackup(env:Env,target:MaintenanceTarget,
  // Write the old bytes first; D1 cannot point to missing originals after the atomic restore.
  for(const object of backup.objects){const metadata:any={customMetadata:object.customMetadata,httpMetadata:{...object.httpMetadata}};if(metadata.httpMetadata.cacheExpiry)metadata.httpMetadata.cacheExpiry=new Date(metadata.httpMetadata.cacheExpiry);await env.SOURCES.put(object.key,Buffer.from(object.bytes,'base64'),metadata)}
  const statements=guards(env,current);for(const row of current.schema.filter(row=>row.type==='trigger')){check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(row.name),'Invalid trigger identifier');statements.push(env.DB.prepare(`DROP TRIGGER ${row.name}`))}
- for(const table of [...tables].reverse())statements.push(env.DB.prepare(`DELETE FROM ${table}`));for(const table of tables)statements.push(...insertRows(env,table,backup.tables[table]));for(const row of backup.schema.filter(row=>row.type==='trigger'))statements.push(env.DB.prepare(row.sql));
+ for(const table of [...tables].reverse().filter(table=>current.schema.some(row=>row.type==='table'&&row.name===table)))statements.push(env.DB.prepare(`DELETE FROM ${table}`));for(const table of tables)statements.push(...insertRows(env,table,backup.tables[table]));for(const row of backup.schema.filter(row=>row.type==='trigger'))statements.push(env.DB.prepare(row.sql));
  const results=await env.DB.batch(statements);check(results.every(result=>result.success),'Backup restore transaction failed');
  for(const key of await objectKeys(env))if(!backup.objects.some(object=>object.key===key))await env.SOURCES.delete(key);
  const restored=await snapshotMaintenance(env,target);check(restored.stateHash===backup.stateHash,'Restored backup does not match original D1 rows and R2 bytes');return {restored:true,stateHash:restored.stateHash};

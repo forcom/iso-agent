@@ -1,4 +1,4 @@
-import {requireValue, stringList, textField} from '../lib/errors';
+import {ApiError, requireValue, stringList, textField} from '../lib/errors';
 import {researchInstructions} from './catalog';
 import type {ResearchDefinition,ResearchTiming} from './types';
 
@@ -16,7 +16,7 @@ function list(value:unknown,name:string,min=0,max=100) {
 }
 export function publicSourceUrl(input:unknown):string {
  const value=textField(input,'출처 URL',2000);let url:URL;
- try{url=new URL(value)}catch{throw new Error('올바른 출처 URL이 필요합니다.')}
+ try{url=new URL(value)}catch{throw new ApiError(422,'INVALID_INPUT','올바른 출처 URL이 필요합니다.')}
  requireValue(url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&url.hostname.includes('.')&&!/^[\d.]+$/.test(url.hostname)&&!url.hostname.includes(':')&&!/(^|\.)(localhost|local|internal|test|invalid)$/.test(url.hostname),422,'INVALID_INPUT','공개 HTTPS 출처 URL을 사용해 주세요.');
  return url.href;
 }

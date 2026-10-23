@@ -1,3 +1,4 @@
+import {installInitialSchema} from "../../seed/scripts/schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { Miniflare } from "miniflare";
 import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
@@ -16,8 +17,7 @@ async function emptyEnvironment() {
   const mf = new Miniflare({ name: "iso-test-install", modules: true, script: "export default { fetch(){return new Response('test')} }", compatibilityDate: "2025-10-01", d1Databases: { DB: "iso-test-install" }, r2Buckets: { SOURCES: "iso-test-install" }, d1Persist: resolve(dir, "d1"), r2Persist: resolve(dir, "r2") });
   cleanups.push(async () => { await mf.dispose(); await rm(dir, { recursive: true, force: true }); });
   const env = { DB: await mf.getD1Database("DB"), SOURCES: await mf.getR2Bucket("SOURCES") } as unknown as Env;
-  const sql = await readFile(resolve(root, "apps/worker/migrations/0001_erp.sql"), "utf8");
-  for (const statement of sql.split("-- statement-breakpoint").map(value => value.trim()).filter(Boolean)) await env.DB.prepare(statement).run();
+  await installInitialSchema(env.DB,root);
   return env;
 }
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); });

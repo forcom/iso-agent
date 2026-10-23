@@ -6,16 +6,17 @@ import {resourceFor} from '../lib/artifacts';
 import {requireAdmin} from '../lib/releases';
 import {requireValue,textField} from '../lib/errors';
 import {requestHash} from '../lib/requests';
+import {canonical} from '../../../packages/knowledge/src/index';
 import {nextOccurrence,parseResearchDefinition} from './schedule';
 import {connection,insertJob,researchEvent,researchGet,researchConflict,updateJob,updateSchedule} from './repository';
 import type {ResearchDefinition,ResearchJob,ResearchSchedule} from './types';
 
 async function inputContext(env:Env,input:any) {const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);return context}
-async function definitionContext(env:Env,definition:ResearchDefinition,context:KnowledgeContext) {
+async function definitionContext(env:Env,definition:ResearchDefinition,context:KnowledgeContext,allowInactiveAssignee=false) {
  const bundle=await getBundle(env,context);
  requireValue(definition.recordTypeIds.every(id=>bundle.recordTypes.some(type=>type.id===id)),422,'UNKNOWN_RECORD_TYPE','등록된 기록 유형을 선택해 주세요.');
  requireValue(!definition.systemId||bundle.entities.some(e=>e.id===definition.systemId&&e.type==='AISystem'),422,'UNKNOWN_SYSTEM','등록된 시스템을 선택해 주세요.');
- if(definition.assigneeId){const person=await get<Person>(env,'persons',definition.assigneeId);requireValue(person.active&&(person.fictional!==true||env.ALLOW_FICTIONAL_PERSONNEL==='true'),422,'PERSON_INACTIVE','유효한 담당자를 선택해 주세요.')}
+ if(definition.assigneeId&&!allowInactiveAssignee){const person=await get<Person>(env,'persons',definition.assigneeId);requireValue(person.active&&(person.fictional!==true||env.ALLOW_FICTIONAL_PERSONNEL==='true'),422,'PERSON_INACTIVE','유효한 담당자를 선택해 주세요.')}
  return Object.fromEntries(definition.recordTypeIds.map(id=>[id,bundle.recordTypes.find(type=>type.id===id)!.templateRevisionId]));
 }
 export async function requireResearchWrite(env:Env,actor:ActorContext,definition:Pick<ResearchDefinition,'recordTypeIds'|'systemId'>,context:KnowledgeContext,baseRevisionId?:string){
@@ -46,7 +47,9 @@ export async function editSchedule(env:Env,actor:ActorContext,id:string,input:an
   const definition=parseResearchDefinition(input.definition);await definitionContext(env,definition,context);
   if(!actor.isAdmin)await requireResearchWrite(env,actor,definition,context);
   requireValue(definition.timing.kind!=='manual'&&typeof input.enabled==='boolean',422,'INVALID_INPUT','일정 주기와 활성 여부를 확인해 주세요.');
-  const s={...old,definition,enabled:input.enabled,version:old.version+1,updatedAt:now,nextAt:input.enabled?nextOccurrence(definition.timing,now):null};
+  const sameTiming=canonical(old.definition.timing)===canonical(definition.timing);
+  const preserveSlot=sameTiming&&(old.enabled===input.enabled||!old.enabled&&old.nextAt!==null);
+  const s={...old,definition,enabled:input.enabled,version:old.version+1,updatedAt:now,lastError:undefined,nextAt:preserveSlot?old.nextAt:input.enabled?nextOccurrence(definition.timing,now):null};
   const statements=[updateSchedule(env,s),researchEvent(env,'schedule_changed',{scheduleId:id},actor.personId,{previousVersion:old.version,definition,enabled:s.enabled})];
   if(old.definition.assigneeId!==definition.assigneeId){
    const jobs=(await env.DB.prepare("SELECT body FROM research_jobs WHERE schedule_id=? AND state NOT IN ('received','cancelled','failed')").bind(id).all<{body:string}>()).results;
@@ -56,8 +59,14 @@ export async function editSchedule(env:Env,actor:ActorContext,id:string,input:an
  });
 }
 export async function newResearchJob(env:Env,definition:ResearchDefinition,context:KnowledgeContext,requestedBy:string,now:string,schedule?:ResearchSchedule,slot?:string,baseRevisionId?:string):Promise<ResearchJob> {
- const templates=await definitionContext(env,definition,context);
- return {id:crypto.randomUUID(),version:1,state:'queued',scheduleId:schedule?.id??null,scheduleVersion:schedule?.version??null,slot:slot??null,definition:structuredClone(definition),assigneeId:definition.assigneeId,requestedBy,createdAt:now,updatedAt:now,connectionId:(await connection(env)).id,context,templates,baseRevisionId,attemptId:null,supplements:[],message:'Dots 연결 후 실행 대기'};
+ const templates=await definitionContext(env,definition,context,Boolean(schedule)),requested=structuredClone(definition);
+ // shortcut: repeat from the initial start until source-by-source verified checkpoints exist; never skip unverified periods.
+ if(schedule)requested.periodEnd=new Date(Date.parse(now)+9*3600000).toISOString().slice(0,10);
+ requireValue(requested.periodStart<=requested.periodEnd,422,'RESEARCH_PERIOD','조사 시작일이 실행일보다 늦습니다.');
+ let assigneeId=definition.assigneeId;
+ if(schedule&&assigneeId){const row=await env.DB.prepare('SELECT body FROM persons WHERE id=?').bind(assigneeId).first<{body:string}>(),person=row?JSON.parse(row.body) as Person:null;if(!person?.active||person.fictional===true&&env.ALLOW_FICTIONAL_PERSONNEL!=='true')assigneeId=''}
+ const from=requested.periodStart,through=requested.periodEnd;
+ return {id:crypto.randomUUID(),version:1,state:'queued',scheduleId:schedule?.id??null,scheduleVersion:schedule?.version??null,slot:slot??null,definition:requested,...(schedule?{scheduleDefinition:structuredClone(definition)}:{}),coverage:{from,through,scheduledFrom:slot??null,coalescedThrough:now,verifiedThrough:null,sourceWindows:definition.sources.map(url=>({url,from,through,verifiedThrough:null}))},assigneeId,requestedBy,createdAt:now,updatedAt:now,connectionId:(await connection(env)).id,context,templates,baseRevisionId,attemptId:null,supplements:[],message:'Dots 연결 후 실행 대기'};
 }
 export async function createResearchJob(env:Env,actor:ActorContext,input:any,scheduleId?:string,now=new Date().toISOString()) {
  return mutate(env,actor,input,`research.job.create:${scheduleId??'manual'}`,async context=>{

@@ -1,6 +1,6 @@
 import type {Env} from '../types';
 import {getKnowledgeContext} from '../lib/storage';
-import {requireValue,textField} from '../lib/errors';
+import {ApiError,requireValue,textField} from '../lib/errors';
 import {canonical} from '../../../packages/knowledge/src/index';
 import {sha256} from '../lib/markdown';
 import {nextOccurrence} from './schedule';
@@ -17,11 +17,17 @@ export async function tickResearch(env:Env,now=new Date().toISOString()) {
  const due=await env.DB.prepare('SELECT body FROM research_schedules WHERE enabled=1 AND next_at<=? ORDER BY next_at LIMIT 100').bind(now).all<{body:string}>();
  for(const row of due.results){
   const s=JSON.parse(row.body) as ResearchSchedule,context=await getKnowledgeContext(env);
-  const job=await newResearchJob(env,s.definition,context,'system:erp-scheduler',now,s,s.nextAt!);
-  job.message=s.nextAt!<now?'예정 시각 이후 누락 기간을 포함한 조사 대기':'정기 조사 대기';
-  const next={...s,version:s.version+1,nextAt:nextOccurrence(s.definition.timing,now),updatedAt:now};
-  try{await env.DB.batch([updateSchedule(env,next),...insertJob(env,job),researchEvent(env,'scheduled',{jobId:job.id,scheduleId:s.id},'system:erp-scheduler',{slot:s.nextAt,observedAt:now})])}
-  catch(error){if(!/RESEARCH_CONFLICT|UNIQUE constraint failed: research_jobs/.test(String(error)))throw error}
+  try{
+   const job=await newResearchJob(env,s.definition,context,'system:erp-scheduler',now,s,s.nextAt!);
+   job.message=s.nextAt!<now?'미확인 기간을 포함한 조사 대기':'정기 조사 대기';
+   const next={...s,version:s.version+1,nextAt:nextOccurrence(s.definition.timing,now),updatedAt:now};
+   await env.DB.batch([updateSchedule(env,next),...insertJob(env,job),researchEvent(env,'scheduled',{jobId:job.id,scheduleId:s.id},'system:erp-scheduler',{slot:s.nextAt,observedAt:now,coverage:job.coverage})]);
+  }catch(error){
+   if(/RESEARCH_CONFLICT|UNIQUE constraint failed: research_jobs/.test(String(error)))continue;
+   if(!(error instanceof ApiError)||![404,422].includes(error.status))throw error;
+   const lastError={code:error.code,message:error.message,at:now};
+   try{await env.DB.batch([updateSchedule(env,{...s,version:s.version+1,enabled:false,updatedAt:now,lastError}),researchEvent(env,'schedule_blocked',{scheduleId:s.id},'system:erp-scheduler',lastError)])}catch(conflict){if(!/RESEARCH_CONFLICT/.test(String(conflict)))throw conflict}
+  }
  }
 }
 /** Internal connector contract only; no human-session or unauthenticated machine route exposes these operations. */
@@ -81,8 +87,10 @@ export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=
 export async function expireResearchAttempts(env:Env,now=new Date().toISOString()) {
  const rows=await env.DB.prepare("SELECT body FROM research_attempts WHERE state IN ('reserved','running') AND expires_at<=?").bind(now).all<{body:string}>();
  for(const row of rows.results){
-  const a=JSON.parse(row.body) as ResearchAttempt,job=await researchGet<ResearchJob>(env,'research_jobs',a.jobId),company=await connection(env);
+  const scanned=JSON.parse(row.body) as ResearchAttempt,job=await researchGet<ResearchJob>(env,'research_jobs',scanned.jobId),a=await researchGet<ResearchAttempt>(env,'research_attempts',scanned.id),company=await connection(env);
+  if(a.state==='closed'||job.attemptId!==a.id||job.state!==a.state||Date.parse(a.expiresAt)>Date.parse(now))continue;
   const next={...company,version:company.version+1,state:'held',reason:'응답 미확인 · 외부 실행 상태를 확인한 후 전달 재개 필요'};
-  try{await env.DB.batch([updateJob(env,{...job,version:job.version+1,state:'uncertain',message:next.reason,updatedAt:now}),saveAttempt(env,{...a,state:'closed'}),env.DB.prepare('UPDATE research_connection SET version=?,body=? WHERE id=?').bind(next.version,JSON.stringify(next),company.id),env.DB.prepare("UPDATE research_outbox SET state='held' WHERE id=?").bind(job.id),researchEvent(env,'timeout',{jobId:job.id},'system:erp-scheduler',{attemptId:a.id})])}catch(error){if(!/RESEARCH_CONFLICT/.test(String(error)))throw error}
+  const fence=env.DB.prepare('INSERT INTO research_attempts SELECT * FROM research_attempts WHERE id=? AND (state<>? OR expires_at<>?)').bind(a.id,a.state,a.expiresAt);
+  try{await env.DB.batch([fence,updateJob(env,{...job,version:job.version+1,state:'uncertain',message:next.reason,updatedAt:now}),saveAttempt(env,{...a,state:'closed'}),env.DB.prepare('UPDATE research_connection SET version=?,body=? WHERE id=?').bind(next.version,JSON.stringify(next),company.id),env.DB.prepare("UPDATE research_outbox SET state='held' WHERE id=?").bind(job.id),researchEvent(env,'timeout',{jobId:job.id},'system:erp-scheduler',{attemptId:a.id})])}catch(error){if(!/RESEARCH_CONFLICT|UNIQUE constraint failed: research_attempts/.test(String(error)))throw error}
  }
 }

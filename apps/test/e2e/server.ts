@@ -22,8 +22,8 @@ const vite = await createViteServer({
 const server = createServer(async (request, response) => {
   if (!request.url?.startsWith('/api/')) { vite.middlewares(request, response); return; }
   try {
-    if(request.method==='POST'&&request.url==='/api/test/research/fixture'){
-      response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(await seedResearchResult(environment)));return;
+    if(request.method==='POST'&&['/api/test/research/fixture','/api/test/research/limited-fixture'].includes(request.url??'')){
+      response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(await seedResearchResult(environment,request.url?.endsWith('/limited-fixture'))));return;
     }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));

@@ -11,6 +11,7 @@ export interface ResearchDefinition {
 export interface ResearchSchedule {
  id:string; version:number; definition:ResearchDefinition; enabled:boolean; nextAt:string|null;
  createdAt:string; createdBy:string; updatedAt:string; connectionId:string;
+ lastError?:{code:string;message:string;at:string};
 }
 export type ResearchState='queued'|'reserved'|'running'|'needs_input'|'partial'|'received'|'uncertain'|'failed'|'cancelled';
 export interface ResearchJob {
@@ -19,6 +20,8 @@ export interface ResearchJob {
  createdAt:string; updatedAt:string; connectionId:string; context:KnowledgeContext;
  templates:Record<string,string>; baseRevisionId?:string; attemptId:string|null;
  supplements:{text:string;personId:string;at:string}[]; message:string;
+ scheduleDefinition?:ResearchDefinition;
+ coverage:{from:string;through:string;scheduledFrom:string|null;coalescedThrough:string;verifiedThrough:null;sourceWindows:{url:string;from:string;through:string;verifiedThrough:null}[]};
 }
 export interface ResearchConnection {
  id:string; version:number; state:'unconfigured'|'ready'|'held'; label:string; reason:string;

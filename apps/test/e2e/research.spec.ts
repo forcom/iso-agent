@@ -43,3 +43,11 @@ test('research proposals remain drafts and use the normal upload permission flow
  await expect(page.locator('.page-title').getByRole('heading',{name:'사람이 검토한 조사 기록',exact:true})).toBeVisible();
  await expect(page.getByRole('link',{name:'조사 제안·근거 보기',exact:true})).toBeVisible();
 });
+test('a writer can adopt their individual proposal from a multi-type research job',async({page})=>{
+ const response=await page.request.post('/api/test/research/limited-fixture');expect(response.ok()).toBe(true);const {jobId}=await response.json();
+ await page.reload();await person(page,'research-limited-author');await page.goto(`/#/research/jobs/${jobId}`);
+ const first=page.getByRole('article').filter({has:page.getByRole('heading',{name:'합성 제안 기록',exact:true})});
+ const second=page.getByRole('article').filter({has:page.getByRole('heading',{name:'두 번째 유형 제안',exact:true})});
+ await expect(first.getByRole('button',{name:'기록으로 채택',exact:true})).toBeEnabled();
+ await expect(second.getByRole('button',{name:'기록으로 채택',exact:true})).toBeDisabled();
+});

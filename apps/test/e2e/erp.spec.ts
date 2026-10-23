@@ -9,6 +9,14 @@ async function selectPerson(page: Page, person: string) {
   await expect(page.getByRole('heading',{level:1})).toBeVisible();
 }
 async function showDecisions(page: Page) { const tab=page.getByRole('tab',{name:'판단·이력'}); if(await tab.isVisible()) await tab.click(); }
+async function expectClosedRegulationChange(page: Page) {
+  await page.getByText('규정 철회 제안',{exact:true}).click();
+  for(const name of ['변경 파일 등록','철회 제안 등록','지식·권한·위키 재구축','지식·권한·위키 검증 확인','규정 검토','반려','규정 승인','검증된 릴리스 시행']) {
+    await expect(page.getByRole('button',{name,exact:true})).toBeDisabled();
+  }
+  await expect(page.getByRole('button',{name:'현재 릴리스 기준으로 재설정',exact:true})).not.toBeVisible();
+  await expect(page.getByRole('button',{name:'변경 건 취소',exact:true})).not.toBeVisible();
+}
 test('employee selection recovers from a session cookie absent from the current database',async ({page,context})=>{
   await context.addCookies([{name:'iso_session',value:'session-from-previous-database',url:'http://127.0.0.1:4173',httpOnly:true,sameSite:'Strict'}]);
   await page.goto('/#/home');
@@ -168,8 +176,42 @@ test('administrator regulation rebuild, separate review and atomic publication',
   await expect(page.getByText('요청이 처리되었습니다. 변경 건의 최신 상태를 확인하세요.',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'검증된 릴리스 시행',exact:true}).click();
   await expect(page.locator('.page-title .status')).toHaveText('시행 중');
+  await expectClosedRegulationChange(page);
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:resolve(screenshots,'admin-published.png'),fullPage:true});
+});
+test('cancelled regulation change retains its source and disables every mutation',async ({page})=>{
+  const {sourceText}=await import('../support/fixtures');
+  await page.goto('/#/home'); await selectPerson(page,'admin');
+  await page.goto('/#/admin/regulations');
+  await page.getByRole('button',{name:'규정 변경 시작',exact:true}).click();
+  const dialog=page.getByRole('dialog'); const title=`합성 취소 변경 ${Date.now()}`;
+  await dialog.getByLabel('변경 제목',{exact:true}).fill(title);
+  await dialog.getByLabel('변경 목적',{exact:true}).fill('종료된 변경 건의 조작 방지');
+  await dialog.getByRole('button',{name:'변경 건 등록',exact:true}).click();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('link',{name:new RegExp(title)}).click();
+  await page.getByLabel('대상 문서',{exact:true}).selectOption('test-reg');
+  await page.getByLabel('문서번호',{exact:true}).fill('TEST-PROC');
+  await page.getByLabel('문서명',{exact:true}).fill('시험 절차');
+  await page.getByLabel('자료 유형',{exact:true}).selectOption('procedure');
+  await page.getByLabel('원본 파일',{exact:true}).setInputFiles({name:'cancelled-regulation.md',mimeType:'text/markdown',buffer:Buffer.from(sourceText+'\n취소 후에도 보존하는 합성 원문\n')});
+  await page.getByRole('button',{name:'변경 파일 등록',exact:true}).click();
+  const retainedRevision=page.locator('.admin-workbench .item-list strong');
+  await expect(retainedRevision).toHaveCount(1);
+  const revisionId=await retainedRevision.innerText();
+  await page.getByRole('button',{name:'지식·권한·위키 재구축',exact:true}).click();
+  await expect(page.getByRole('button',{name:'지식·권한·위키 검증 확인',exact:true})).toBeEnabled();
+  await page.getByLabel('원본 파일',{exact:true}).setInputFiles({name:'pending.md',mimeType:'text/markdown',buffer:Buffer.from('# 제출하지 않은 합성 파일\n')});
+  await expect(page.getByRole('button',{name:'변경 파일 등록',exact:true})).toBeEnabled();
+  await page.getByLabel('검토 의견',{exact:true}).fill('합성 변경 건을 취소합니다.');
+  await page.getByRole('button',{name:'변경 건 취소',exact:true}).click();
+  await expect(page.locator('.page-title .status')).toHaveText('cancelled');
+  await expectClosedRegulationChange(page);
+  await expect(retainedRevision).toHaveText(revisionId);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.goto(`/#/sources/${revisionId}`);
+  await expect(page.getByLabel('Markdown 원문')).toContainText('취소 후에도 보존하는 합성 원문');
 });
 test('native design dimensions, exact citations, new revision and keyboard navigation',async ({page})=>{
   await page.setViewportSize({width:1586,height:992});

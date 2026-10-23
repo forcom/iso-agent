@@ -5,7 +5,15 @@ import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBund
 import {readRevision,resourceFor} from './artifacts';
 import {authorize} from './engine';
 import {sha256} from './markdown';
+import {canonical} from '../../../packages/knowledge/src/index';
 import {requireValue,textField} from './errors';
+// Fence the exact target the user saw, including conditions, submission and accumulated decisions.
+// Other records can change without invalidating this version; no persisted counter is needed.
+export function revisionVersion(revision:Revision){return sha256(canonical(revision));}
+export async function assertRevisionVersion(expected:unknown,revision:Revision){
+ requireValue(typeof expected==='string'&&expected.length>0,422,'EXPECTED_REVISION_VERSION_REQUIRED','조회한 기록의 검토 기준이 필요합니다. 다시 확인해 주세요.');
+ requireValue(expected===await revisionVersion(revision),409,'REVISION_CONFLICT','이 기록의 조건 또는 검토 상태가 변경되었습니다. 다시 확인해 주세요.');
+}
 export function typeConditions(bundle:KnowledgeBundle,typeIds:string[]) {
  const conditions=bundle.policies.filter(p=>typeIds.includes(p.resourceTypeId)).flatMap(p=>p.conditions);
  for(const type of bundle.recordTypes.filter(t=>typeIds.includes(t.id)))for(const condition of [type.applicabilityCondition,type.approvalCondition,type.reviewCondition])if(condition)conditions.push(condition);
@@ -62,6 +70,7 @@ export async function confirmConditions(env:Env,actor:ActorContext,artifactId:st
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('record.conditions',{...input,artifactId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);const artifact=await get<Artifact>(env,'artifacts',artifactId),revision=await get<Revision>(env,'revisions',input.revisionId);
  requireValue(revision.artifactId===artifactId && artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','현재 작업 버전이 아닙니다.');requireValue(['in_review','draft','rejected'].includes(revision.state),409,'STATE_CONFLICT','결정 전 작업 버전에서 조건을 확인해 주세요.');
+ await assertRevisionVersion(input.expectedRevisionVersion,revision);
  const bundle=await getBundle(env,context),known=typeConditions(bundle,artifact.recordTypeIds),{markdown}=await readRevision(env,revision.id);
  requireValue(Array.isArray(input.confirmations)&&input.confirmations.length>0,422,'CONFIRMATION_REQUIRED','확인할 조건과 원문을 지정해 주세요.');
  const conditions={...revision.conditions},proofs=[];const confirmationTypes:string[][]=[];let requesterPersonId=revision.requesterPersonId,implementerIds=revision.implementerIds,auditedPersonIds=revision.auditedPersonIds;

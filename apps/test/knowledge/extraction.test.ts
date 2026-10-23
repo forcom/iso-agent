@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buildRelease, mergeExtraction } from "../../packages/knowledge/src/index";
+import { buildRelease, checkBundle, mergeExtraction } from "../../packages/knowledge/src/index";
 import { corpus } from "./fixture";
 
 it("extraction_edits_only_mappings_of_changed_sources", async () => {
@@ -31,4 +31,49 @@ it("candidate_and_validated_builds_of_the_same_inputs_get_distinct_release_ids",
   const candidate = await buildRelease({ ...(await corpus()), candidate: true });
   expect(candidate.manifest.releaseId).not.toBe(validated.manifest.releaseId);
   expect((await buildRelease(await corpus())).manifest.releaseId).toBe(validated.manifest.releaseId);
+});
+
+it("ignores changed IDs in descriptions and unknown metadata when deciding extraction scope", async () => {
+  const input = await corpus(), changed = "unrelated-guide-revision";
+  const original = input.mappings.policies[0];
+  const proposals = [
+    { ...original, id: "metadata-policy", extractionNote: changed },
+    { ...original, id: "nested-metadata-policy", metadata: { evidenceRefs: [{ revisionId: changed }] } },
+    { ...original, id: "quote-policy", evidenceRefs: [{ ...original.evidenceRefs[0], quote: changed }] },
+    { ...original, id: changed },
+  ];
+  const result = mergeExtraction(input.mappings, { policies: [...input.mappings.policies, ...proposals] } as never, [changed]);
+  expect(result.mappings.policies.map(policy => policy.id)).toEqual(["policy-create"]);
+  expect(result.issues.filter(issue => issue.code === "out_of_scope_addition_ignored")).toHaveLength(4);
+  const validated = await buildRelease({ ...input, mappings: result.mappings });
+  expect(checkBundle(validated).valid).toBe(true);
+  expect(validated.policies.map(policy => policy.id)).toEqual(["policy-create"]);
+});
+
+it("keeps unchanged mappings even when their descriptions contain a changed ID", async () => {
+  const { mappings } = await corpus(), changed = "unrelated-guide-revision";
+  mappings.roles[0].name = changed;
+  const original = structuredClone(mappings.roles[0]);
+  const edited = mergeExtraction(mappings, { roles: [{ ...original, name: "LLM replacement" }] }, [changed]);
+  expect(edited.mappings.roles).toEqual([original]);
+  expect(edited.issues).toContainEqual(expect.objectContaining({ code: "out_of_scope_edit_ignored", path: "roles:coordinator" }));
+  const omitted = mergeExtraction(mappings, { roles: [] }, [changed]);
+  expect(omitted.mappings.roles).toEqual([original]);
+});
+
+it("accepts explicit source, template, evidence and relation references to changed inputs", async () => {
+  const { mappings } = await corpus();
+  const evidence = { ...mappings.roles[0].evidenceRefs[0], revisionId: "changed-revision" };
+  const result = mergeExtraction(mappings, {
+    sources: [...mappings.sources, { ...mappings.sources[0], sourceCode: "NEW-SOURCE", revisionId: "changed-revision" }],
+    recordTypes: [...mappings.recordTypes, { ...mappings.recordTypes[0], id: "new-type", templateArtifactId: "changed-template" }],
+    roles: [...mappings.roles, { id: "new-role", name: "New role", evidenceRefs: [evidence] }],
+    policies: [...mappings.policies, { ...mappings.policies[0], id: "new-policy", conditions: [{ field: "test", equals: true, reason: "Changed condition", evidenceRefs: [evidence] }] }],
+    relations: [{ id: "new-relation", subjectId: "changed-revision", objectId: "example-procedure", type: "references", evidenceRefs: [] }],
+  } as never, ["changed-revision", "changed-template"]);
+  expect(result.mappings.sources.some(item => item.sourceCode === "NEW-SOURCE")).toBe(true);
+  expect(result.mappings.recordTypes.some(item => item.id === "new-type")).toBe(true);
+  expect(result.mappings.roles.some(item => item.id === "new-role")).toBe(true);
+  expect(result.mappings.policies.some(item => item.id === "new-policy")).toBe(true);
+  expect(result.mappings.relations?.some(item => item.id === "new-relation")).toBe(true);
 });

@@ -57,10 +57,12 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  add(id,revisionId,'has_revision');for(const type of types)add(id,type,'record_of_type');for(const tpl of input.templateRevisionIds)add(revisionId,tpl,'uses_template');if(previous)add(revisionId,previous.id,'supersedes');
  if(input.scope)add(revisionId,input.scope,'about_system');
  for(const known of await all<Artifact>(env,'artifacts'))if(known.id!==id){const line=lines.findIndex(line=>mentionsCode(line,known.documentCode));if(line>=0)add(revisionId,known.id,'references','reference_extraction','candidate',citation(line))}
- await env.SOURCES.put(objectKey,input.file as Uint8Array<ArrayBuffer>,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
  const statements=[artifact?update(env,'artifacts',id,next):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,'record',JSON.stringify(next)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),...relations.map(r=>env.DB.prepare('INSERT INTO relations VALUES(?,?)').bind(r.id,JSON.stringify(r))),event(env,id,{kind:'record_registered',revisionId,actorId:actor.personId,context,authorization})];
  const result={artifactId:id,revisionId,status:state,context:{...context,dataRevision:context.dataRevision+1}};
- return withSourceCleanup(env,revisionId,[objectKey,textKey],commitMutation(env,actor,key,hash,context,result,statements));
+ return withSourceCleanup(env,revisionId,[objectKey,textKey],async()=>{
+  await env.SOURCES.put(objectKey,input.file as Uint8Array<ArrayBuffer>,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
+  return commitMutation(env,actor,key,hash,context,result,statements);
+ });
 }
 /** A code counts only as a whole token, so AIDU-AIP-01 is not found inside AIDU-AIP-01-F02. */
 export function mentionsCode(line:string,code:string) {
@@ -68,8 +70,8 @@ export function mentionsCode(line:string,code:string) {
 }
 /** Objects keyed by a fresh revision ID are deleted only when D1 confirms that revision was never
  * registered: a failed commit, or a replay that returned an earlier request's revision. */
-export async function withSourceCleanup<T>(env:Env,revisionId:string,keys:string[],commit:Promise<T>):Promise<T> {
- try{return await commit}finally{
+export async function withSourceCleanup<T>(env:Env,revisionId:string,keys:string[],storeAndCommit:()=>Promise<T>):Promise<T> {
+ try{return await storeAndCommit()}finally{
   try{if(!(await env.DB.prepare('SELECT 1 FROM revisions WHERE id=?').bind(revisionId).first()))await env.SOURCES.delete(keys)}catch{/* keep objects when registration state is unknown */}
  }
 }

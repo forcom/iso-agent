@@ -58,9 +58,16 @@ async function definitions(env:Env,bundle:KnowledgeBundle){
 }
 /** Rebuilds hash the original R2 bytes; a bundle's markdown is normalized text, not the uploaded file. */
 async function buildSources(env:Env,sources:SourceRevision[]):Promise<BuildSource[]>{
- return Promise.all(sources.map(async({markdown:_markdown,textSha256:_text,...meta})=>{
-  const revision=await get<Revision>(env,'revisions',meta.revisionId),object=await env.SOURCES.get(revision.objectKey);
-  requireValue(object,422,'SOURCE_UNAVAILABLE','원본을 확보할 수 없습니다.');const bytes=new Uint8Array(await object.arrayBuffer());
+ return Promise.all(sources.map(async({markdown,textSha256:_text,...meta})=>{
+  let bytes:Uint8Array;
+  if(meta.kind==='index'){
+   // Indexes are bundle inputs, not ERP revisions. Older installs retained only their bundle text.
+   const object=await env.SOURCES.get(`sources/${meta.revisionId}/${meta.sha256}.md`);
+   bytes=object?new Uint8Array(await object.arrayBuffer()):new TextEncoder().encode(markdown);
+  }else{
+   const revision=await get<Revision>(env,'revisions',meta.revisionId),object=await env.SOURCES.get(revision.objectKey);
+   requireValue(object,422,'SOURCE_UNAVAILABLE','원본을 확보할 수 없습니다.');bytes=new Uint8Array(await object.arrayBuffer());
+  }
   requireValue(await sha256(bytes)===meta.sha256,422,'SOURCE_CHANGED','원본 해시가 일치하지 않습니다.');return {...meta,bytes};
  }));
 }
@@ -122,8 +129,10 @@ export async function addRegulationFile(env:Env,actor:ActorContext,changeId:stri
  const artifact:Artifact={id,documentCode:code,title,kind:input.kind==='template'?'template':'regulation',regulationType:input.kind,recordTypeIds:[],workingRevisionId:revisionId,effectiveRevisionId:old?.effectiveRevisionId??null,systemIds:[]};
  const priorRevisions=await Promise.all(change.revisionIds.map(id=>get<Revision>(env,'revisions',id)));
  const next:Change={...change,state:'draft',revisionIds:[...priorRevisions.filter(r=>r.artifactId!==id).map(r=>r.id),revisionId],withdrawnArtifactIds:change.withdrawnArtifactIds.filter(artifactId=>artifactId!==id),candidateHash:undefined,candidateReleaseId:undefined,knowledgeValidation:undefined};
- await env.SOURCES.put(objectKey,input.file,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
- return withSourceCleanup(env,revisionId,[objectKey,textKey],commitMutation(env,actor,key,hash,context,{artifactId:id,revisionId,change:next},[old?update(env,'artifacts',id,artifact):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,artifact.kind,JSON.stringify(artifact)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),update(env,'regulation_changes',changeId,next),event(env,id,{kind:'regulation_working_revision',changeId,revisionId,actorId:actor.personId,authorization,context})]));
+ return withSourceCleanup(env,revisionId,[objectKey,textKey],async()=>{
+  await env.SOURCES.put(objectKey,input.file,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
+  return commitMutation(env,actor,key,hash,context,{artifactId:id,revisionId,change:next},[old?update(env,'artifacts',id,artifact):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,artifact.kind,JSON.stringify(artifact)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),update(env,'regulation_changes',changeId,next),event(env,id,{kind:'regulation_working_revision',changeId,revisionId,actorId:actor.personId,authorization,context})]);
+ });
 }
 export async function buildRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  requireAdmin(actor);const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.build',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;

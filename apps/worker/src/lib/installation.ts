@@ -20,16 +20,22 @@ export async function installRelease(env: Env, bundle: KnowledgeBundle, target: 
   const warnings = preparationCheck.errors.filter(issue => issue.code === "operator_unassigned").map(issue => issue.message);
   const at = new Date().toISOString(); const statements: D1PreparedStatement[] = [];
   const objects: Array<{ key: string; content: Uint8Array | string }> = [];
-  const addSource = (artifact: Artifact, revision: Revision, markdown: string) => {
-    objects.push({ key: revision.objectKey, content: markdown }, { key: revision.textKey, content: markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n") });
+  const addSource = (artifact: Artifact, revision: Revision, markdown: string, original: Uint8Array | string = markdown) => {
+    objects.push({ key: revision.objectKey, content: original }, { key: revision.textKey, content: markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n") });
     statements.push(env.DB.prepare("INSERT INTO artifacts(id,document_code,kind,body) VALUES(?,?,?,?)").bind(artifact.id, artifact.documentCode, artifact.kind, JSON.stringify(artifact)), env.DB.prepare("INSERT INTO revisions(id,artifact_id,body) VALUES(?,?,?)").bind(revision.id, artifact.id, JSON.stringify(revision)));
   };
   for (const source of bundle.sources) {
-    if (source.kind === "index") continue;
+    const supplied = target.sourceBytes?.[source.revisionId];
+    const original = supplied ?? new TextEncoder().encode(source.markdown);
+    requireValue(await sha256(original) === source.sha256, 422, supplied ? "SOURCE_HASH" : "SOURCE_BYTES_REQUIRED", supplied ? "설치할 원본 바이트의 해시가 릴리스와 다릅니다." : "정규화된 텍스트로 원본을 대체할 수 없습니다. 해시가 일치하는 원본 바이트가 필요합니다.");
+    if (source.kind === "index") {
+      objects.push({ key: `sources/${source.revisionId}/${source.sha256}.md`, content: original });
+      continue;
+    }
     const kind = source.kind === "template" ? "template" : "regulation";
     const artifact: Artifact = { id: source.artifactId, documentCode: source.code, title: source.title, kind, regulationType: source.kind, recordTypeIds: [], workingRevisionId: source.revisionId, effectiveRevisionId: source.revisionId, systemIds: [] };
     const revision: Revision = { id: source.revisionId, artifactId: source.artifactId, filename: source.path.split("/").at(-1)!, sourceSha256: source.sha256, textSha256: source.textSha256, objectKey: `sources/${source.revisionId}/${source.sha256}.md`, textKey: `text/${source.revisionId}/${source.textSha256}.txt`, state: "registered", createdAt: at, createdBy: "deployment", previousRevisionId: null, templateRevisionIds: [], systemIds: [], conditions: {}, fieldMappings: {}, evidenceStatus: "verified" };
-    addSource(artifact, revision, source.markdown);
+    addSource(artifact, revision, source.markdown, original);
   }
   const operator = preparation.operatorDesignation;
   for (const person of preparation.persons) statements.push(env.DB.prepare("INSERT INTO persons(id,body) VALUES(?,?)").bind(person.id, JSON.stringify({ ...person, isAdmin: operator?.personId === person.id, ...(operator?.personId === person.id ? { operatorDesignation: operator } : {}) })));

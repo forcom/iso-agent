@@ -1,10 +1,16 @@
 import {it,expect,afterEach} from 'vitest';
 import app from '../../worker/src/index';
 import {createTestEnvironment,type TestEnvironment} from '../support/environment';
-import {getKnowledgeContext} from '../../worker/src/lib/storage';
+import {get,getKnowledgeContext} from '../../worker/src/lib/storage';
+import {revisionVersion} from '../../worker/src/lib/conditions';
+import type {Revision} from '../../worker/src/types';
 let env:TestEnvironment;afterEach(async()=>env?.cleanup());
 async function actor(id:string){const a=await env.select(id);return {cookie:`iso_session=${a.sessionId}`,'X-Session-Version':'1'}}
-async function mutate(path:string,body:any,id='author'){return app.request(path,{method:'POST',headers:{...await actor(id),'Content-Type':'application/json'},body:JSON.stringify({requestKey:crypto.randomUUID(),expectedContext:await getKnowledgeContext(env.bindings),...body})},env.bindings)}
+async function mutate(path:string,body:any,id='author'){
+ const revisionId=path.match(/^\/api\/revisions\/([^/]+)\/decisions$/)?.[1]??(path.endsWith('/submit')?body.revisionId:undefined);
+ const expectedRevisionVersion=revisionId?await revisionVersion(await get<Revision>(env.bindings,'revisions',revisionId)):undefined;
+ return app.request(path,{method:'POST',headers:{...await actor(id),'Content-Type':'application/json'},body:JSON.stringify({requestKey:crypto.randomUUID(),expectedContext:await getKnowledgeContext(env.bindings),expectedRevisionVersion,...body})},env.bindings);
+}
 async function upload(id?:string,revisionId?:string){
  const data=new FormData();data.set('file',new File(['# 시험 기록\n승인자: administrator'],'../../record.md'));data.set('documentCode','TEST-RECORD');data.set('title','시험 기록');data.set('recordTypeId','test-F01');data.set('templateRevisionIds',JSON.stringify(['test-tpl-rev-1']));data.set('requestKey',crypto.randomUUID());data.set('expectedContext',JSON.stringify(await getKnowledgeContext(env.bindings)));if(revisionId)data.set('expectedRevisionId',revisionId);
  return app.request(id?`/api/records/${id}/revisions`:'/api/records',{method:'POST',headers:await actor('author'),body:data},env.bindings);

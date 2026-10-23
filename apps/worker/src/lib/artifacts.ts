@@ -33,10 +33,11 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  requireValue(input.templateRevisionIds.length===types.length && recordTypes.every(t=>input.templateRevisionIds.includes(t!.templateRevisionId)),422,'TEMPLATE_MISMATCH','각 기록 유형에 맞는 시행 양식 버전을 지정해 주세요.');
  if(types.length>1)requireValue(types.every(id=>input.fieldMappings?.[id] && parsed.markdown.includes(input.fieldMappings[id])),422,'TYPE_MAPPING_REQUIRED','통합 기록의 유형별 항목과 원문을 대응해 주세요.');
  const code=textField(input.documentCode,'documentCode',200),title=textField(input.title,'title',500);
- const declaredCode=parsed.markdown.match(/^document_code:\s*["']?([^\n"']+)/m)?.[1].trim();
+ const declaredCode=parsed.markdown.match(/^(?:document_code|information_id):\s*["']?([^\n"']+)/m)?.[1].trim();
  requireValue(!declaredCode||declaredCode===code,422,'IDENTITY_CONFLICT','파일 기재 문서번호와 입력이 다릅니다.');
- const declaredType=parsed.markdown.match(/^record_type_id:\s*["']?([^\n"']+)/m)?.[1].trim();
- requireValue(!declaredType||types.includes(declaredType),422,'TYPE_CONFLICT','파일 기재 유형과 선택 유형이 다릅니다.');
+ // record_type_id names the type ID; form_id in the existing records names the form code.
+ const declaredType=parsed.markdown.match(/^(?:record_type_id|form_id):\s*["']?([^\n"']+)/m)?.[1].trim();
+ requireValue(!declaredType||recordTypes.some(t=>t!.id===declaredType||t!.code===declaredType),422,'TYPE_CONFLICT','파일 기재 유형과 선택 유형이 다릅니다.');
  let artifact:Artifact|undefined;
  if(artifactId){
   artifact=await get<Artifact>(env,'artifacts',artifactId);
@@ -61,12 +62,27 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  add(id,revisionId,'has_revision');for(const type of types)add(id,type,'record_of_type');for(const tpl of input.templateRevisionIds)add(revisionId,tpl,'uses_template');if(previous)add(revisionId,previous.id,'supersedes');
  if(input.scope)add(revisionId,input.scope,'about_system');
  for(const known of await all<Artifact>(env,'artifacts'))if(known.id!==id){const line=lines.findIndex(line=>mentionsCode(line,known.documentCode));if(line>=0)add(revisionId,known.id,'references','reference_extraction','candidate',citation(line))}
+ if(!artifact)relations.push(...await citingRevisions(env,code,id,context.releaseId));
  const statements=[artifact?update(env,'artifacts',id,next):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,'record',JSON.stringify(next)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),...relations.map(r=>env.DB.prepare('INSERT INTO relations VALUES(?,?)').bind(r.id,JSON.stringify(r))),event(env,id,{kind:'record_registered',revisionId,actorId:actor.personId,context,authorization})];
  const result={artifactId:id,revisionId,status:state,context:{...context,dataRevision:context.dataRevision+1}};
  return withSourceCleanup(env,revisionId,[objectKey,textKey],async()=>{
   await env.SOURCES.put(objectKey,input.file as Uint8Array<ArrayBuffer>,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
   return commitMutation(env,actor,key,hash,context,result,statements);
  });
+}
+/** References from records registered before this code existed, so links do not depend on upload order.
+ * A text that is missing or no longer matches its hash yields no candidate; evidence checks report it. */
+async function citingRevisions(env:Env,code:string,artifactId:string,releaseId:Relation['releaseId']):Promise<Relation[]> {
+ // ponytail: reads every record text per new code; index codes per revision if record volume grows.
+ const rows=(await env.DB.prepare("SELECT r.body FROM revisions r JOIN artifacts a ON a.id=r.artifact_id WHERE a.kind='record'").all<{body:string}>()).results;
+ const found:Relation[]=[];
+ for(const known of rows.map(row=>JSON.parse(row.body) as Revision)){
+  const text=await (await env.SOURCES.get(known.textKey))?.text();
+  if(text===undefined||await sha256(text)!==known.textSha256)continue;
+  const lines=text.split('\n'),line=lines.findIndex(item=>mentionsCode(item,code));
+  if(line>=0)found.push({id:crypto.randomUUID(),subjectId:known.id,objectId:artifactId,type:'references',origin:'reference_extraction',evidenceRefs:[{revisionId:known.id,sourceSha256:known.sourceSha256,lineStart:line+1,lineEnd:line+1,quote:lines[line]}],releaseId,reviewStatus:'candidate'});
+ }
+ return found;
 }
 /** A code counts only as a whole token, so AIDU-AIP-01 is not found inside AIDU-AIP-01-F02. */
 export function mentionsCode(line:string,code:string) {

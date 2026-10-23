@@ -1,18 +1,16 @@
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,stat,writeFile} from 'node:fs/promises';
+import {readFile,stat} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import type {GraphResult,KnowledgeContext} from '../../packages/contracts/src/index';
 import type {Artifact,Revision} from '../../worker/src/types';
 import {sourceText} from '../support/fixtures';
 import {openStaging,stagingDirectory} from '../staging/platform';
+import {createHttp,message as maskedMessage,saveJson,stable,type Client,type Http,type Json} from './client';
 
 // Run only after the separate synthetic Worker, D1, R2 and Container are deployed.
 // openStaging verifies the real remote database identity before exposing bindings.
-type Json = Record<string,any>;
 type Person = 'author'|'reviewer'|'approver'|'director'|'admin'|'reader';
-type Client = {personId:Person;cookie:string;version:number};
-type HttpResult<T = Json> = {status:number;body:T;headers:Headers;durationMs:number};
 type Step = {name:string;startedAt:string;finishedAt?:string;durationMs?:number;status:'running'|'passed'|'failed';evidence?:unknown;error?:string};
 const report = {
   gate:'G-10',scope:'Remote synthetic staging only',runId:randomUUID(),startedAt:new Date().toISOString(),
@@ -25,41 +23,15 @@ let token='',baseUrl='',engineHeld=false;
 let engineMetadata:GraphResult['engine'];
 const clients={} as Record<Person,Client>;
 const hash=(input:string|Uint8Array)=>createHash('sha256').update(input).digest('hex');
-function stable(value:any):string {
-  if(Array.isArray(value))return `[${value.map(stable).join(',')}]`;
-  if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-  return JSON.stringify(value);
-}
-function message(error:unknown) {
-  const text=error instanceof Error?error.message:String(error);
-  return token?text.replaceAll(token,'[redacted]'):text;
-}
-async function saveReport() {
-  await mkdir(stagingDirectory,{recursive:true});
-  await writeFile(reportPath,JSON.stringify(report,null,2)+'\n');
-}
+function message(error:unknown) {return maskedMessage(error,[token]);}
+async function saveReport() {await saveJson(reportPath,report);}
+let http:Http;
 async function step<T>(name:string,run:()=>Promise<T>):Promise<T> {
   const start=Date.now(),entry:Step={name,startedAt:new Date(start).toISOString(),status:'running'};
   report.steps.push(entry);await saveReport();
   try {const result=await run();entry.status='passed';entry.evidence=result;return result;}
   catch(error){entry.status='failed';entry.error=message(error);throw error;}
   finally {entry.finishedAt=new Date().toISOString();entry.durationMs=Date.now()-start;await saveReport();}
-}
-async function http<T=Json>(path:string,options:{client?:Client;method?:string;json?:unknown;form?:FormData;expected?:number;errorCode?:string}={}):Promise<HttpResult<T>> {
-  assert.ok(path.startsWith('/')&&!path.startsWith('//'),'Only same-staging relative paths are permitted');
-  const {client,json,form,expected=200,errorCode}=options;
-  const method=options.method??(json!==undefined||form?'POST':'GET');
-  const headers=new Headers({'X-G10-Token':token});
-  if(client){headers.set('Cookie',client.cookie);headers.set('X-Session-Version',String(client.version));}
-  if(json!==undefined)headers.set('Content-Type','application/json');
-  const start=Date.now();
-  const response=await fetch(baseUrl+path,{method,headers,body:form??(json===undefined?undefined:JSON.stringify(json)),redirect:'error',signal:AbortSignal.timeout(180_000)});
-  const raw=await response.text(),durationMs=Date.now()-start;
-  let body:any;try{body=JSON.parse(raw);}catch{body={nonJson:true};}
-  report.requests.push({method,path,status:response.status,durationMs,providerCalls:response.headers.get('X-G10-Llm-Provider-Calls')});
-  assert.equal(response.status,expected,`${method} ${path}: expected ${expected}; received ${response.status} (${body?.error?.code??'no JSON error code'})`);
-  if(errorCode)assert.equal(body?.error?.code,errorCode,`${method} ${path}: expected ${errorCode}`);
-  return {status:response.status,body,headers:response.headers,durationMs};
 }
 async function me(client:Client) {return (await http('/api/me',{client})).body as {context:KnowledgeContext;sessionVersion:number;actor:{personId:string;isAdmin:boolean}};}
 async function mutate(path:string,client:Client,fields:Json={},expected=200,errorCode?:string) {
@@ -141,6 +113,7 @@ async function main() {
   const tokenPath=resolve(stagingDirectory,'.g10-token');
   assert.equal((await stat(tokenPath)).mode&0o077,0,'Staging token must not be group/world readable');
   token=(await readFile(tokenPath,'utf8')).trim();assert.ok(token.length>=32,'Missing staging access token');
+  http=createHttp({baseUrl,headers:{'X-G10-Token':token},onRequest:entry=>{report.requests.push(entry)}});
   await step('guarded staging and actual PyreWire health',async()=>{
     const health=(await http('/__g10/health',{method:'POST'})).body;
     assert.equal(health.status,'ok');assert.equal(health.engine?.name,'PyreWire');

@@ -8,14 +8,9 @@ export const sessionRoutes=new Hono<AppEnv>();
 export function administratorAssignmentEligible(person:{id:string;isAdmin?:boolean;adminAssignmentId?:string|null;fictional?:boolean},assignments:RoleAssignment[],now=Date.now()) {
  if(person.isAdmin!==true)return false;
  if(!person.adminAssignmentId)return person.fictional!==true;
- let id=person.adminAssignmentId;const seen=new Set<string>();let role:string|undefined;
- while(id){
-  if(seen.has(id))return false;seen.add(id);
-  const assignment=assignments.find(item=>item.id===id);
-  if(!assignment||assignment.status!=='active'||assignment.scope.kind!=='all'||!Number.isFinite(Date.parse(assignment.validFrom))||Date.parse(assignment.validFrom)>now||assignment.validUntil&&(!Number.isFinite(Date.parse(assignment.validUntil))||Date.parse(assignment.validUntil)<=now))return false;
-  if(id===person.adminAssignmentId&&(assignment.personId!==person.id||assignment.grantsAdmin!==true))return false;
-  if(role&&role!==assignment.roleId)return false;role=assignment.roleId;id=assignment.delegatedFromAssignmentId??'';
- }return true;
+ const assignment=assignments.find(item=>item.id===person.adminAssignmentId);
+ if(!assignment||assignment.delegatedFromAssignmentId||assignment.status!=='active'||assignment.scope.kind!=='all'||!Number.isFinite(Date.parse(assignment.validFrom))||Date.parse(assignment.validFrom)>now||assignment.validUntil&&(!Number.isFinite(Date.parse(assignment.validUntil))||Date.parse(assignment.validUntil)<=now))return false;
+ return assignment.personId===person.id&&assignment.grantsAdmin===true;
 }
 export async function resolveActor(env:Env,id:string|undefined):Promise<ActorContext> {
  if(!id) throw new ApiError(401,'PERSON_REQUIRED','직원을 선택해 주세요.');
@@ -27,7 +22,7 @@ export async function resolveActor(env:Env,id:string|undefined):Promise<ActorCon
 }
 export async function sessionView(env:Env,actor:ActorContext) {
  const person=await get<Person>(env,'persons',actor.personId);
- const assignments=(await all<RoleAssignment>(env,'assignments')).filter(a=>a.personId===person.id && a.status==='active');
+ const assignments=(await all<RoleAssignment>(env,'assignments')).filter(a=>a.personId===person.id && a.status==='active'&&!a.delegatedFromAssignmentId);
  let context=null;try{context=await getKnowledgeContext(env)}catch(error){if(!(error instanceof ApiError && error.code==='KNOWLEDGE_UNAVAILABLE'))throw error}
  const bundle=context?await getBundle(env,context):null,roles=assignments.map(assignment=>({...assignment,roleName:bundle?.roles.find(role=>role.id===assignment.roleId)?.name??assignment.roleId}));
  return {actor:{...actor,name:person.name,active:person.active,fictional:person.fictional,personaId:person.personaId,department:person.department,jobTitle:person.jobTitle,reportsToId:person.reportsToId},roles,context,sessionVersion:actor.sessionVersion,identityNotice:person.fictional?'가상 페르소나의 데모 역할 설정입니다. 실제 직원·인사발령·승인 근거가 아니며 본인 인증·전자서명이 아닙니다.':'직원 선택은 데모 신원 선택이며 본인 인증·전자서명이 아닙니다.'};

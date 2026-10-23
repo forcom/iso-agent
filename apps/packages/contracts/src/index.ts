@@ -30,7 +30,7 @@ export interface Relation { id: string; subjectId: string; objectId: string; typ
 export interface FunctionalRole { id: RoleId; name: string; evidenceRefs: EvidenceRef[] }
 export interface Person { id: PersonId; name: string; active: boolean; fictional?: boolean; personaId?: string; department?: string; jobTitle?: string; reportsToId?: PersonId }
 export interface ActorContext { personId: PersonId; sessionId: string; sessionVersion: number; isAdmin: boolean }
-export interface RoleAssignment { id: string; personId: PersonId; roleId: RoleId; scope: { kind: "all" | "system" | "resource"; ids: string[] }; validFrom: string; validUntil?: string; approvedRevisionId: RevisionId; approvalDecisionId?: string; basis?: "fictional_configuration"; delegatedFromAssignmentId?: string; replacesAssignmentId?: string; grantsAdmin?: boolean; evidenceRefs: EvidenceRef[]; status: "active" | "revoked" }
+export interface RoleAssignment { id: string; personId: PersonId; roleId: RoleId; scope: { kind: "all" | "system" | "resource"; ids: string[] }; validFrom: string; validUntil?: string; approvedRevisionId: RevisionId; approvalDecisionId?: string; basis?: "fictional_configuration"; delegatedFromAssignmentId?: string; replacesAssignmentId?: string; grantsAdmin?: boolean; adminMapping?: { candidateId: string; actorId: PersonId; at: string; reason: string }; evidenceRefs: EvidenceRef[]; status: "active" | "revoked" }
 export interface PolicyCondition { field: string; equals: string | number | boolean; reason: string; evidenceRefs: EvidenceRef[] }
 export interface ActionPolicy {
   id: string; resourceTypeId: string; action: Action; roleId: RoleId;
@@ -86,7 +86,9 @@ export interface CirculationInput { artifactId: ArtifactId; revisionId: Revision
 export interface CirculationResult { circulationId: string; revisionId: RevisionId; recipientIds: PersonId[]; context: KnowledgeContext }
 export interface ReceiptInput { circulationId: string; revisionId: RevisionId; understood: boolean; requestKey: string; expectedContext: KnowledgeContext }
 export interface ReceiptResult { receiptId: string; circulationId: string; revisionId: RevisionId; personId: PersonId }
-export interface AssignmentApplyInput { revisionId: RevisionId; assignments: RoleAssignment[]; requestKey: string; expectedContext: KnowledgeContext }
+export interface AppointmentSourceCandidate { id: string; sectionId: string; label: string; kind: "appointment" | "delegation"; personText: string; roleText: string; scopeText: string; periodText: string; personIds: PersonId[]; validFrom?: string; validUntil?: string; blockedReason?: string; evidenceRefs: EvidenceRef[] }
+export interface AssignmentMapping { candidateId: string; personId: PersonId; roleIds: RoleId[]; validFrom: string; validUntil?: string; scope: RoleAssignment['scope']; reason: string; replacesAssignmentIds?: Record<RoleId,string> }
+export interface AssignmentApplyInput { revisionId: RevisionId; assignments?: RoleAssignment[]; mappedAssignments?: AssignmentMapping[]; requestKey: string; expectedContext: KnowledgeContext }
 export interface AssignmentResult { assignmentIds: string[]; context: KnowledgeContext }
 export interface BuildResult { changeId: string; bundle: KnowledgeBundle; validation: ValidationReport }
 export interface PublishInput { changeId: string; releaseId: ReleaseId; expectedContext: KnowledgeContext; requestKey: string }

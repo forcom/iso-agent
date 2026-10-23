@@ -18,7 +18,10 @@
     "knowledge:build": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/build.ts",
     "knowledge:check": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/check.ts",
     "knowledge:install": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/install.ts",
-    "personnel:install": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/personnel.ts"
+    "personnel:install": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/personnel.ts",
+    "acceptance:permissions": "pnpm --filter @iso-agent/test exec tsx acceptance/permissions-prepare.ts",
+    "acceptance:records": "pnpm --filter @iso-agent/test exec tsx acceptance/run.ts",
+    "maintenance:business": "pnpm --filter @iso-agent/worker exec tsx ../../apps/seed/scripts/reset-business.ts"
   },
   "engines": {
     "node": ">=20"

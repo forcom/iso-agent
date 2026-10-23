@@ -33,6 +33,8 @@ it('withdrawal rejects malformed extraction and preserves historical originals a
  const {changeId}=await (await post('/api/admin/regulation-changes','admin',{title:'시험 양식 철회'})).json() as any;
  const path=`/api/admin/regulation-changes/${changeId}`;
  expect((await post(`${path}/withdrawals`,'admin',{artifactId:original.artifactId,reason:'다른 양식으로 통합'})).status).toBe(200);
+ const abandoned=await open('같은 양식의 중복 철회 작업');
+ expect((await post(`/api/admin/regulation-changes/${abandoned}/withdrawals`,'admin',{artifactId:original.artifactId,reason:'중복 검토'})).status).toBe(200);
  const fetchOriginal=globalThis.fetch;let extraction:any={policies:[null]};
  vi.spyOn(globalThis,'fetch').mockImplementation((input,init)=>String(input).startsWith('https://api.openai.com')?Promise.resolve(Response.json({choices:[{message:{content:JSON.stringify(extraction)}}]})):fetchOriginal(input,init));
  expect((await post(`${path}/build`,'admin',{})).status).toBe(422);
@@ -44,6 +46,8 @@ it('withdrawal rejects malformed extraction and preserves historical originals a
  expect((await post(`${path}/publish`,'director',{candidateHash:candidate.change.candidateHash})).status).toBe(200);
  const artifact=await get<any>(env.bindings,'artifacts',original.artifactId),revision=await get<any>(env.bindings,'revisions',original.revisionId);
  expect(artifact.effectiveRevisionId).toBeNull();expect(await env.bindings.SOURCES.get(revision.objectKey)).not.toBeNull();
+ expect((await post(`/api/admin/regulation-changes/${abandoned}/cancel`,'admin',{comment:'다른 변경에서 이미 철회함'})).status).toBe(200);
+ expect((await get<any>(env.bindings,'artifacts',original.artifactId)).effectiveRevisionId).toBeNull();
  expect((await getBundle(env.bindings,await getKnowledgeContext(env.bindings))).recordTypes.some(t=>t.id==='test-F02')).toBe(false);
 });
 async function upload(changeId:string,fields:Record<string,string>,text:string){
@@ -52,6 +56,27 @@ async function upload(changeId:string,fields:Record<string,string>,text:string){
  return app.request(`/api/admin/regulation-changes/${changeId}/files`,{method:'POST',headers:await headers('admin'),body:data},env.bindings);
 }
 async function open(title:string){return ((await (await post('/api/admin/regulation-changes','admin',{title})).json()) as any).changeId as string}
+it('builds an exact-revision change before a candidate exists and rejects a superseded working file',async()=>{
+ env=await createTestEnvironment();
+ for(const policy of env.bundle.policies)if(policy.action==='revise'&&policy.resourceTypeId==='procedure')policy.requiresExactRevision=true;
+ env.bundle.manifest.manifestHash='';env.bundle.manifest.manifestHash=await sha256(canonical(env.bundle));
+ await env.bindings.SOURCES.put('releases/test-release.json',JSON.stringify(env.bundle));
+ await env.bindings.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(env.bundle.manifest),env.bundle.manifest.releaseId).run();
+ const original=env.bundle.sources.find(source=>source.code==='TEST-PROC')!,changeId=await open('정확한 규정 버전 재구축');
+ const fields={artifactId:original.artifactId,documentCode:original.code,title:original.title,kind:'procedure'};
+ const first=await upload(changeId,fields,original.markdown+'\n첫 개정\n');expect(first.status).toBe(201);const firstRevisionId=(await first.json() as any).revisionId;
+ const built=await post(`/api/admin/regulation-changes/${changeId}/build`,'admin',{});
+ expect(built.status,await built.clone().text()).toBe(200);
+ const other=await open('동일 규정의 새 작업본');
+ expect((await upload(other,fields,original.markdown+'\n두 번째 개정\n')).status).toBe(201);
+ expect((await post(`/api/admin/regulation-changes/${changeId}/build`,'admin',{})).status).toBe(409);
+ expect((await post(`/api/admin/regulation-changes/${other}/build`,'admin',{})).status).toBe(200);
+ const working=(await get<any>(env.bindings,'artifacts',original.artifactId)).workingRevisionId;
+ expect((await post(`/api/admin/regulation-changes/${changeId}/cancel`,'admin',{comment:'다른 변경 건으로 대체함'})).status).toBe(200);
+ expect((await get<any>(env.bindings,'artifacts',original.artifactId)).workingRevisionId).toBe(working);
+ const cancelled=await env.bindings.DB.prepare("SELECT body FROM events WHERE json_extract(body,'$.kind')='regulation_change_cancelled' AND json_extract(body,'$.changeId')=?").bind(changeId).first<{body:string}>();
+ expect(JSON.parse(cancelled!.body).authorization.resources).toEqual([expect.objectContaining({artifactId:original.artifactId,revisionId:working,changeRevisionId:firstRevisionId})]);
+});
 it('revalidates and publishes hierarchy at the new procedure revision',async()=>{
  const base=await syntheticBundle(),markdown='# 시험 매뉴얼\n시험 절차는 이 매뉴얼을 구체화한다.\n',hash=await sha256(markdown);
  const manual={artifactId:'test-manual',revisionId:'test-manual-rev',path:'synthetic/manual.md',code:'TEST-MANUAL',title:'시험 매뉴얼',kind:'manual' as const,sha256:hash,textSha256:hash,markdown};

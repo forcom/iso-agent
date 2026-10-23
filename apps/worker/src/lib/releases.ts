@@ -3,23 +3,23 @@ import type {ActorContext,BuildSource,KnowledgeBundle,KnowledgeContext,ReviewedM
 import type {Artifact,Change,Env,Revision} from '../types';
 import {buildRelease,checkBundle,mergeExtraction,rebaseMappings,verifyBundle,canonical} from '../../../packages/knowledge/src/index';
 import {createProvider} from '../../../packages/llm/src/index';
-import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
+import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBundle,getKnowledgeContext,readLargeJson,replay,storeLargeJson,update} from './storage';
 import {authorize,requireAuthorization} from './engine';
-import {readRevision,withSourceCleanup} from './artifacts';
+import {readRevision,resourceFor,withSourceCleanup} from './artifacts';
 import {parseMarkdown,sha256} from './markdown';
 import {ApiError,requireValue,textField} from './errors';
 export function requireAdmin(actor:ActorContext){requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 지정이 필요합니다.');}
 const isOpen=(change:Change)=>change.state!=='published'&&change.state!=='cancelled';
-async function closeableChange(env:Env,actor:ActorContext,changeId:string,input:any){
+async function closeableChange(env:Env,actor:ActorContext,changeId:string,input:any,action:'revise'|'cancel'){
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  const change=await get<Change>(env,'regulation_changes',changeId);requireValue(isOpen(change),409,'CHANGE_CLOSED','시행되었거나 취소된 변경 건입니다.');
- const authorization=change.revisionIds.length||change.withdrawnArtifactIds.length?await changeAuthorization(env,actor,change,'revise',context):undefined;
+ const authorization=change.revisionIds.length||change.withdrawnArtifactIds.length?await changeAuthorization(env,actor,change,action,context):undefined;
  return {context,change,authorization};
 }
 /** Closes a change without publishing. Published working pointers fall back to their effective revision; files and history stay. */
 export async function cancelRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  requireAdmin(actor);const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.cancel',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const {context,change,authorization}=await closeableChange(env,actor,changeId,input);const reason=textField(input.comment,'취소 사유',10000);
+ const {context,change,authorization}=await closeableChange(env,actor,changeId,input,'cancel');const reason=textField(input.comment,'취소 사유',10000);
  const statements:D1PreparedStatement[]=[];
  for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id),artifact=await get<Artifact>(env,'artifacts',r.artifactId);if(artifact.workingRevisionId===id&&artifact.effectiveRevisionId)statements.push(update(env,'artifacts',artifact.id,{...artifact,workingRevisionId:artifact.effectiveRevisionId}))}
  const next:Change={...change,state:'cancelled'};
@@ -29,10 +29,9 @@ export async function cancelRegulationChange(env:Env,actor:ActorContext,changeId
 /** Moves a change left behind by another publication onto the current release. Its candidate must be rebuilt and decided again. */
 export async function rebaseRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  requireAdmin(actor);const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.rebase',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
- const {context,change,authorization}=await closeableChange(env,actor,changeId,input);
+ const {context,change,authorization}=await closeableChange(env,actor,changeId,input,'revise');
  requireValue(change.baseContext.releaseId!==context.releaseId,409,'CHANGE_CURRENT','이미 현재 시행 릴리스를 기준으로 합니다.');
- for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id);requireValue((await get<Artifact>(env,'artifacts',r.artifactId)).workingRevisionId===id,409,'REVISION_CONFLICT','다른 변경 건이 같은 규정의 작업본을 등록했습니다.')}
- for(const id of change.withdrawnArtifactIds)requireValue((await get<Artifact>(env,'artifacts',id)).effectiveRevisionId,409,'WITHDRAWAL_CONFLICT','철회 대상이 이미 시행 중이 아닙니다.');
+ // closeableChange(...,'revise') already requires each file to be the working revision and each withdrawal target to be effective.
  const next:Change={...change,baseContext:context,state:'draft',candidateReleaseId:undefined,candidateHash:undefined,validation:undefined,diff:undefined,knowledgeValidation:undefined};
  return commitMutation(env,actor,key,hash,context,{change:next},[update(env,'regulation_changes',changeId,next),event(env,null,{kind:'regulation_change_rebased',changeId,fromReleaseId:change.baseContext.releaseId,actorId:actor.personId,authorization,context})]);
 }
@@ -41,8 +40,9 @@ export async function changeDetails(env:Env,id:string){
  const revisions=await Promise.all(change.revisionIds.map(id=>get<Revision>(env,'revisions',id)));
  const decisions=(await all<any>(env,'decisions')).filter(d=>d.changeId===id);
  const candidate=change.candidateReleaseId?await candidateBundle(env,change):null;
- return {change,revisions,decisions,candidate};
+ return {change:await regulationChangeView(env,change),revisions,decisions,candidate};
 }
+export async function regulationChangeView(env:Env,change:Change):Promise<Change>{return {...change,diff:await readLargeJson(env,change.diff)};}
 export async function candidateBundle(env:Env,change:Change) {
  requireValue(change.candidateReleaseId && change.candidateHash,409,'BUILD_REQUIRED','후보 지식을 먼저 구축해 주세요.');
  const row=await env.DB.prepare('SELECT object_key FROM releases WHERE id=?').bind(change.candidateReleaseId).first<{object_key:string}>();
@@ -85,7 +85,17 @@ function diffItems<T extends object>(before:T[],after:T[],key:(item:T)=>string,i
  for(const [id,item] of old)if(!next.has(id))removed.push(item);
  return {beforeCount:before.length,afterCount:after.length,added,removed,changed,unchanged:before.length-removed.length-changed.length};
 }
-async function changeAuthorization(env:Env,actor:ActorContext,change:Change,action:'review'|'approve'|'publish'|'revise',context:KnowledgeContext){
+async function changeAuthorization(env:Env,actor:ActorContext,change:Change,action:'review'|'approve'|'publish'|'revise'|'cancel',context:KnowledgeContext){
+ if(action==='revise'||action==='cancel'){
+  const resources:Array<ReturnType<typeof resourceFor>&{changeRevisionId?:string}>=[];
+  for(const id of change.revisionIds){let revision=await get<Revision>(env,'revisions',id);const artifact=await get<Artifact>(env,'artifacts',revision.artifactId);
+   // Exact-revision policies only cover the current working file, so cancelling a superseded change is judged there; the audit keeps both IDs.
+   if(action==='cancel')revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);else requireValue(artifact.workingRevisionId===revision.id,409,'REVISION_CONFLICT','다른 변경 건이 규정 작업본을 변경했습니다.');resources.push({...resourceFor(artifact,revision),changeRevisionId:id,state:'draft'})}
+  for(const id of change.withdrawnArtifactIds){const artifact=await get<Artifact>(env,'artifacts',id),revisionId=action==='cancel'?artifact.workingRevisionId:artifact.effectiveRevisionId;requireValue(revisionId,409,'WITHDRAWAL_CONFLICT','철회 대상이 시행 중이 아닙니다.');const revision=await get<Revision>(env,'revisions',revisionId);resources.push({...resourceFor(artifact,revision),currentRevisionId:revisionId,state:'draft'})}
+  requireValue(resources.length>0,422,'CHANGE_EMPTY','변경 파일이 없습니다.');
+  const decisions=await Promise.all(resources.map(({changeRevisionId:_change,...resource})=>requireAuthorization(env,actor,'revise',resource,context)));
+  return {...decisions[0],resources:resources.map(({changeRevisionId,...resource},index)=>({artifactId:resource.id,revisionId:resource.revisionId,...(changeRevisionId?{changeRevisionId}:{}),policyIds:decisions[index].policyIds,assignmentIds:decisions[index].assignmentIds??[]})),policyIds:[...new Set(decisions.flatMap(decision=>decision.policyIds))],assignmentIds:[...new Set(decisions.flatMap(decision=>decision.assignmentIds??[]))],evidenceRefs:decisions.flatMap(decision=>decision.evidenceRefs)};
+ }
  const kinds=[];for(const id of change.revisionIds){const r=await get<Revision>(env,'revisions',id);kinds.push((await get<Artifact>(env,'artifacts',r.artifactId)).regulationType!)}
  for(const id of change.withdrawnArtifactIds)kinds.push((await get<Artifact>(env,'artifacts',id)).regulationType!);
  requireValue(kinds.length>0,422,'CHANGE_EMPTY','변경 파일이 없습니다.');
@@ -168,7 +178,7 @@ export async function buildRegulationChange(env:Env,actor:ActorContext,changeId:
   assignments:await all(env,'assignments'),issues:rebased.issues,extractionError,
   comparisonNote:'릴리스 식별자만 바뀐 항목은 변경으로 세지 않습니다. 원문·인용·조건 등 실제 값의 차이와 이전·이후 전체 값을 보존합니다.',
  };
- const next:Change={...change,state:'built',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation,diff,knowledgeValidation:undefined};
+ const next:Change={...change,state:'built',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation,diff:await storeLargeJson(env,diff,'regulation-diffs'),knowledgeValidation:undefined};
  const result={change:next,candidate:bundle,validation};return commitMutation(env,actor,key,hash,context,result,[await writeCandidate(env,bundle),update(env,'regulation_changes',changeId,next),event(env,null,{kind:'knowledge_candidate_built',changeId,actorId:actor.personId,candidateHash:next.candidateHash,context})]);
 }
 export async function decideRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){

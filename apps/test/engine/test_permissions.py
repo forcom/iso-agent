@@ -106,14 +106,19 @@ class PermissionTests(unittest.TestCase):
         request['resource']['conditions']['escalation'] = 'false'
         self.assertFalse(engine().authorize(request)['allowed'])
 
-    def test_delegation_does_not_expand_parent_scope_or_expiry(self):
+    def test_delegation_is_out_of_scope_even_with_a_valid_parent(self):
         request = auth_fixture(); parent = request['snapshot']['assignments'][0]
         parent['personId'] = 'principal'
         child = copy.deepcopy(parent)
         child.update(id='delegated', personId='p1', delegatedFromAssignmentId=parent['id'])
         child['scope'] = {'kind': 'all', 'ids': []}
         request['snapshot']['assignments'].append(child)
+        result = engine().authorize(request)
+        self.assertFalse(result['allowed'])
+        self.assertIn({'id': 'delegated', 'reason': 'DELEGATION_NOT_SUPPORTED'}, result['excluded'])
+        request['actor']['personId'] = 'principal'
         self.assertTrue(engine().authorize(request)['allowed'])
+        request['actor']['personId'] = 'p1'
         request['resource']['systemIds'] = ['unrelated']
         self.assertFalse(engine().authorize(request)['allowed'])
         request['resource']['systemIds'] = ['system-1']

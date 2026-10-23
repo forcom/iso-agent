@@ -1,4 +1,7 @@
 import { ApiError, requireValue } from './errors';
+export function markdownDownload(bytes:Uint8Array,filename:string) {
+  return new Response(bytes as BodyInit,{headers:{'Content-Type':'text/markdown;charset=utf-8','Content-Disposition':`attachment; filename="source.md"; filename*=UTF-8''${encodeURIComponent(filename).replace(/['()*]/g,char=>`%${char.charCodeAt(0).toString(16)}`)}`,'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'}});
+}
 export async function sha256(value:Uint8Array|string):Promise<string> {
   const bytes=typeof value==='string'?new TextEncoder().encode(value):value;
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes as BufferSource))].map(v=>v.toString(16).padStart(2,'0')).join('');

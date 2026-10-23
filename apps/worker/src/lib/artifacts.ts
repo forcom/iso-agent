@@ -10,12 +10,16 @@ export function resourceFor(artifact:Artifact,revision:Revision) {
  return {id:artifact.id,typeIds:artifact.kind==='record'?artifact.recordTypeIds:[artifact.regulationType!],revisionId:revision.id,currentRevisionId:artifact.workingRevisionId,state:revision.state,systemIds:revision.systemIds,authorPersonId:revision.createdBy,reviewerPersonIds:revision.reviewedBy??[],requesterPersonId:revision.requesterPersonId,implementerIds:revision.implementerIds,auditedPersonIds:revision.auditedPersonIds,conditions:revision.conditions};
 }
 export async function readRevision(env:Env,id:string) {
+ const {bytes: _bytes,...content}=await readRevisionFile(env,id);
+ return content;
+}
+export async function readRevisionFile(env:Env,id:string) {
  const revision=await get<Revision>(env,'revisions',id);const object=await env.SOURCES.get(revision.objectKey);
  if(!object)throw new ApiError(422,'SOURCE_UNAVAILABLE','원본을 확보할 수 없습니다.',{revision});
  const bytes=new Uint8Array(await object.arrayBuffer());requireValue(await sha256(bytes)===revision.sourceSha256,422,'SOURCE_CHANGED','원본 해시가 일치하지 않습니다.');
  const parsed=await parseMarkdown(revision.filename,bytes);
  requireValue(parsed.textSha256===revision.textSha256,422,'SOURCE_CHANGED','추출 텍스트 해시가 일치하지 않습니다.');
- return {revision,markdown:parsed.markdown,evidenceStatus:'verified' as const};
+ return {revision,markdown:parsed.markdown,evidenceStatus:'verified' as const,bytes};
 }
 export async function registerRecord(env:Env,actor:ActorContext,input:RecordUpload,artifactId?:string,expectedRevisionId?:string):Promise<RecordRevisionResult> {
  const parsed=await parseMarkdown(input.filename,input.file);const key=textField(input.requestKey,'requestKey',200);

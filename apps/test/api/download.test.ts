@@ -1,0 +1,32 @@
+import { afterEach, expect, it } from 'vitest';
+import app from '../../worker/src/index';
+import { createTestEnvironment, type TestEnvironment } from '../support/environment';
+import { get, update } from '../../worker/src/lib/storage';
+import { parseMarkdown } from '../../worker/src/lib/markdown';
+import type { Revision } from '../../worker/src/types';
+
+let env: TestEnvironment;
+afterEach(async () => { await env?.cleanup(); });
+it('downloads verified original bytes and rejects anonymous, mismatched and tampered sources', async () => {
+  env = await createTestEnvironment();
+  const actor = await env.select('reader');
+  const headers = { cookie: `iso_session=${actor.sessionId}` };
+  const revision = await get<Revision>(env.bindings, 'revisions', 'test-reg-rev');
+  const bytes = new TextEncoder().encode('\uFEFF# 다운로드 시험\r\n원본 바이트 보존\r\n');
+  const parsed = await parseMarkdown('original.md', bytes);
+  await update(env.bindings, 'revisions', revision.id, { ...revision, sourceSha256: parsed.sha256, textSha256: parsed.textSha256 }).run();
+  await env.bindings.SOURCES.put(revision.objectKey, bytes);
+  const path = '/api/artifacts/test-reg/revisions/test-reg-rev/content?download=1';
+  const response = await app.request(path, { headers }, env.bindings);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toContain('text/markdown');
+  expect(response.headers.get('content-disposition')).toContain('attachment');
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+  expect((await app.request(path, {}, env.bindings)).status).toBe(401);
+  expect((await app.request(path.replace('/test-reg/', '/wrong/'), { headers }, env.bindings)).status).toBe(404);
+  await env.bindings.SOURCES.put(revision.objectKey, '# 改変');
+  expect((await app.request(path, { headers }, env.bindings)).status).toBe(422);
+  await env.bindings.SOURCES.delete(revision.objectKey);
+  expect((await app.request(path, { headers }, env.bindings)).status).toBe(422);
+});

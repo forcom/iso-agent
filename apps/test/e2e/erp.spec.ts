@@ -6,7 +6,7 @@ const screenshots = resolve(import.meta.dirname,'../../../output/test/screenshot
 async function selectPerson(page: Page, person: string) {
   await page.getByRole('combobox',{name:'직원 선택',exact:true}).selectOption(person);
   await expect(page.getByRole('combobox',{name:'직원 선택',exact:true})).toHaveValue(person);
-  await expect(page.getByRole('heading',{level:1})).toBeVisible();
+  await expect(page.locator('.page-title').getByRole('heading',{level:1})).toBeVisible();
 }
 async function showDecisions(page: Page) { const tab=page.getByRole('tab',{name:'판단·이력'}); if(await tab.isVisible()) await tab.click(); }
 async function expectClosedRegulationChange(page: Page) {
@@ -42,7 +42,7 @@ async function upload(page: Page, title: string) {
   await dialog.getByLabel('Markdown 파일',{exact:true}).setInputFiles({name:'synthetic-record.md',mimeType:'text/markdown',buffer:Buffer.from(`# ${title}\n\n합성 시험 기록입니다.\n`) });
   await dialog.getByRole('button',{name:'파일 등록',exact:true}).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+  await expect(page.locator('.page-title').getByRole('heading',{name:title,exact:true})).toBeVisible();
   return page.url();
 }
 for (const viewport of [{width:1440,height:900},{width:1920,height:1080},{width:1280,height:800},{width:1024,height:768},{width:390,height:844}]) {
@@ -88,13 +88,13 @@ for (const viewport of [{width:1440,height:900},{width:1920,height:1080},{width:
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(await page.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)))).toEqual([]);
     await page.goto(recordUrl);
-    await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+    await expect(page.locator('.page-title').getByRole('heading',{name:title,exact:true})).toBeVisible();
   });
 }
 test('knowledge routes, source versions, engine/LLM failure and read-only policy',async ({page})=>{
   await page.goto('/#/home'); await selectPerson(page,'reader');
   for(const [route,title] of [['documents','규정·양식'],['records','기록관리'],['wiki','지식 위키'],['trace','요구사항 추적·Q&A'],['impact','영향평가 초안'],['search','통합 검색']] as const){
-    await page.goto(`/#/${route}`); await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+    await page.goto(`/#/${route}`); await expect(page.locator('.page-title').getByRole('heading',{name:title,exact:true})).toBeVisible();
   }
   await page.goto('/#/documents/test-reg'); await expect(page.getByLabel('Markdown 원문')).toContainText('시험 절차');
   await page.goto('/#/trace?mode=neighbors&id=test-reg');

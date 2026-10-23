@@ -9,6 +9,10 @@ compatibility_flags = ["nodejs_compat"]
 APP_NAME = "iso-agent"
 LLM_MODEL = "gpt-4.1-mini"
 ALLOW_FICTIONAL_PERSONNEL = "true"
+RESEARCH_SCHEDULES_ENABLED = "false"
+
+[triggers]
+crons = ["*/5 * * * *"]
 
 [assets]
 directory = "../../output/build/worker/client"

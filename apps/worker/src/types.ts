@@ -2,6 +2,7 @@ import type { ActorContext, ArtifactKind, KnowledgeContext, RevisionStatus, Role
 export interface Env {
   APP_NAME?:string; DB:D1Database; SOURCES:R2Bucket; ENGINE?:DurableObjectNamespace;
   ENGINE_URL?:string; OPENAI_API_KEY?:string; LLM_MODEL?:string; ASSETS?:Fetcher; ALLOW_FICTIONAL_PERSONNEL?:string;
+  RESEARCH_SCHEDULES_ENABLED?:string;
 }
 export type AppEnv = {Bindings:Env;Variables:{actor:ActorContext}};
 export interface Artifact {

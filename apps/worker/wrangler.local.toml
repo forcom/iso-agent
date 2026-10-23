@@ -1,5 +1,5 @@
 name = "iso-agent"
-main = "src/index.ts"
+main = "src/entry.ts"
 compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -8,6 +8,10 @@ APP_NAME = "iso-agent"
 LLM_MODEL = "gpt-4.1-mini"
 ENGINE_URL = "http://127.0.0.1:8788"
 ALLOW_FICTIONAL_PERSONNEL = "true"
+RESEARCH_SCHEDULES_ENABLED = "false"
+
+[triggers]
+crons = ["*/5 * * * *"]
 
 [assets]
 directory = "../../output/build/worker/client"

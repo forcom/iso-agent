@@ -2,12 +2,21 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const markdown = '# 렌더링 시험\n\n## 검토 항목\n\n**중요한 내용**과 `표시 코드`\n\n| 항목 | 결과 |\n| --- | --- |\n| 원문 보존 | 확인 |\n\n- [x] 검토 완료\n- [ ] 후속 확인\n\n> 합성 인용문\n\n```json\n{"count":0}\n```\n\n[시험 절차](../procedure/TEST-PROC.md)\n\n[미등록 문서](./UNKNOWN.md)\n\n[위험 링크](javascript:alert(1))\n\n![외부 이미지](https://example.invalid/tracker.png)\n\n<script>window.renderingUnsafe = true</script>\n';
+const markdown = '# 렌더링 시험\n\n## 검토 항목\n\n**중요한 내용**과 `표시 코드`\n\n| 항목 | 결과 |\n| --- | --- |\n| 원문 보존 | 확인 |\n\n- [x] 검토 완료\n- [ ] 후속 확인\n\n> 합성 인용문\n\n```json\n{"count":0}\n```\n\n[시험 절차](../procedure/TEST-PROC.md)\n\n범위: 4.1~4.2.2, [범위 지침](../procedure/TEST-PROC.md) 4.5.1~4.5.4.\n\n~~정상 취소선~~\n\n[미등록 문서](./UNKNOWN.md)\n\n[위험 링크](javascript:alert(1))\n\n![외부 이미지](https://example.invalid/tracker.png)\n\n<script>window.renderingUnsafe = true</script>\n';
 async function login(page: Page) {
   await page.goto('/#/home');
   await page.getByRole('combobox', { name: '직원 선택', exact: true }).selectOption('author');
   await expect(page.getByLabel('질문', { exact: true })).toBeVisible();
 }
+
+test('search results show the document code and open the matching document', async ({ page }) => {
+  await login(page);
+  await page.goto('/#/search?q=TEST-PROC');
+  const result = page.locator('main .item-list a[href="#/documents/test-reg"]');
+  await expect(result.locator('small')).toHaveText('TEST-PROC');
+  await result.click();
+  await expect(page.locator('.page-title h1')).toHaveText('시험 절차');
+});
 
 test('documents render safely and preserve exact uploaded bytes when downloaded', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -36,6 +45,9 @@ test('documents render safely and preserve exact uploaded bytes when downloaded'
   await expect(viewer.getByRole('checkbox').first()).toBeChecked();
   await expect(viewer.getByRole('checkbox').first()).toBeDisabled();
   await expect(viewer.getByRole('link', { name: '시험 절차', exact: true })).toHaveAttribute('href', '#/documents/test-reg');
+  await expect(viewer.locator('p').filter({ hasText: '범위:' })).toHaveText('범위: 4.1~4.2.2, 범위 지침 4.5.1~4.5.4.');
+  await expect(viewer.getByRole('link', { name: '범위 지침', exact: true })).toHaveAttribute('href', '#/documents/test-reg');
+  await expect(viewer.locator('del')).toHaveText(['정상 취소선']);
   await expect(viewer.getByRole('link', { name: '미등록 문서', exact: true })).toHaveCount(0);
   await expect(viewer.locator('a[href^="javascript:"], img, script, iframe')).toHaveCount(0);
   expect(external).toEqual([]);

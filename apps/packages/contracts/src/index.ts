@@ -8,6 +8,7 @@ export type ArtifactKind = "regulation" | "template" | "record";
 export type RegulationType = "manual" | "procedure" | "guide" | "template";
 export type Action = "read" | "create" | "revise" | "submit" | "review" | "approve" | "reject" | "circulate" | "confirm_receipt" | "apply_assignment" | "publish";
 export type RevisionStatus = "draft" | "in_review" | "reviewed" | "approved" | "rejected" | "registered" | "withdrawn";
+export type ApprovalScope = "record" | "outcome";
 export type EvidenceStatus = "verified" | "changed" | "unavailable" | "unrecorded";
 export type ReviewStatus = "candidate" | "validated" | "rejected";
 export type Origin = "regulation" | "explicit_metadata" | "reference_extraction" | "product_policy";
@@ -32,13 +33,22 @@ export interface Person { id: PersonId; name: string; active: boolean; fictional
 export interface ActorContext { personId: PersonId; sessionId: string; sessionVersion: number; isAdmin: boolean }
 export interface RoleAssignment { id: string; personId: PersonId; roleId: RoleId; scope: { kind: "all" | "system" | "resource"; ids: string[] }; validFrom: string; validUntil?: string; approvedRevisionId: RevisionId; approvalDecisionId?: string; basis?: "fictional_configuration"; delegatedFromAssignmentId?: string; replacesAssignmentId?: string; grantsAdmin?: boolean; adminMapping?: { candidateId: string; actorId: PersonId; at: string; reason: string }; evidenceRefs: EvidenceRef[]; status: "active" | "revoked" }
 export interface PolicyCondition { field: string; equals: string | number | boolean; reason: string; evidenceRefs: EvidenceRef[] }
+/** Environment-owned business designations; never part of a KnowledgeBundle. */
+export interface RecordDesignation {
+  recordTypeId: RecordTypeId; action: Action; personId: PersonId; roleId: RoleId;
+  documentCode: string; filename: string; sourceSha256: string; systemIds: string[];
+}
+export interface RecordDesignationRegistry { version: 1; designations: RecordDesignation[] }
+/** Optional fields on the installed release DB row body, outside its manifest. */
+export interface RecordDesignationReference { recordDesignationKey?: string; recordDesignationSha256?: string }
 export interface ActionPolicy {
   id: string; resourceTypeId: string; action: Action; roleId: RoleId;
   scopeCondition: { kind: "all" | "system" | "owner" | "recipient"; systemIds?: string[]; conditions?: Record<string, boolean> };
   stateCondition: string[]; separationCondition: "none" | "not_requester" | "not_author" | "not_reviewer" | "not_implementer" | "independent_auditor";
   decisionKind: "registration" | "review" | "approval" | "receipt" | "publication" | "assignment";
   evidenceRefs: EvidenceRef[]; effectiveReleaseId: ReleaseId; origin: Origin;
-  conditions: PolicyCondition[]; requiresExactRevision: boolean; productPolicyId?: string; reviewStatus: ReviewStatus; adminRequired?: boolean;
+  conditions: PolicyCondition[]; requiresExactRevision: boolean; productPolicyId?: string; reviewStatus: ReviewStatus; adminRequired?: boolean; approvalScope?: ApprovalScope;
+  requiresRecordDesignation?: true;
 }
 export interface ActionCoverage { action: Action; status: "defined" | "not_applicable" | "unresolved"; reason: string; evidenceRefs: EvidenceRef[]; policyIds: string[] }
 export interface RecordType {
@@ -46,6 +56,8 @@ export interface RecordType {
   procedureCode: string; reviewRequired: boolean; approvalRequired: boolean; approvalCondition?: PolicyCondition; reviewCondition?: PolicyCondition; requiredReviewRoleIds?: RoleId[];
   applicability: string; applicabilityCondition?: PolicyCondition; roleAssignment?: true; actionCoverage: ActionCoverage[];
   evidenceRefs: EvidenceRef[]; reviewStatus: ReviewStatus;
+  recordApproval?: { label: string; limitations: string };
+  declaredConditions?: PolicyCondition[];
 }
 export interface ReviewedMapping {
   sourceCode: string; sourceSha256: string; revisionId?: RevisionId; reviewStatus: ReviewStatus; reviewedBy: string; reviewedAt: string;
@@ -80,7 +92,7 @@ export interface RecordUpload { file: Uint8Array; filename: string; documentCode
 export interface RevisionUpload extends Omit<RecordUpload, "recordTypeIds"> { artifactId: ArtifactId; expectedRevisionId: RevisionId }
 export interface RecordRevisionResult { artifactId: ArtifactId; revisionId: RevisionId; status: RevisionStatus; context: KnowledgeContext }
 export interface RevisionContent { artifactId: ArtifactId; revisionId: RevisionId; sha256: string; markdown: string; status: RevisionStatus }
-export interface DecisionInput { artifactId: ArtifactId; revisionId: RevisionId; decision: "submit" | "review" | "approve" | "reject"; comment: string; requestKey: string; expectedContext: KnowledgeContext; expectedRevisionVersion: string }
+export interface DecisionInput { artifactId: ArtifactId; revisionId: RevisionId; decision: "submit" | "review" | "approve" | "reject"; approvalScope?: ApprovalScope; comment: string; requestKey: string; expectedContext: KnowledgeContext; expectedRevisionVersion: string }
 export interface DecisionResult { decisionId: string; revisionId: RevisionId; status: RevisionStatus; context: KnowledgeContext }
 export interface CirculationInput { artifactId: ArtifactId; revisionId: RevisionId; recipientIds: PersonId[]; purpose: string; requestKey: string; expectedContext: KnowledgeContext }
 export interface CirculationResult { circulationId: string; revisionId: RevisionId; recipientIds: PersonId[]; context: KnowledgeContext }
@@ -94,7 +106,13 @@ export interface BuildResult { changeId: string; bundle: KnowledgeBundle; valida
 export interface PublishInput { changeId: string; releaseId: ReleaseId; expectedContext: KnowledgeContext; requestKey: string }
 export interface PublishResult { releaseId: ReleaseId; context: KnowledgeContext }
 export interface GroundingRequest { question: string; context: KnowledgeContext; actor: ActorContext }
-export interface GroundingResult { sources: Array<{ revisionId: RevisionId; markdown: string; evidenceRefs: EvidenceRef[] }>; excluded: Array<{ revisionId: RevisionId; reason: string }>; context: KnowledgeContext }
+export interface GroundingSource {
+  revisionId: RevisionId; markdown: string; evidenceRefs: EvidenceRef[];
+  artifactId?: ArtifactId; code?: string; title?: string; kind?: ArtifactKind | SourceRevision['kind'];
+  record?: { state: RevisionStatus; approvalScope: ApprovalScope; approvalLabel?: string; approvalLimitations?: string; conditions: Record<string, string | number | boolean> };
+  confirmedFacts?: { requesterPersonId?: PersonId; implementerIds?: PersonId[]; auditedPersonIds?: PersonId[] };
+}
+export interface GroundingResult { sources: GroundingSource[]; excluded: Array<{ revisionId: RevisionId; reason: string }>; context: KnowledgeContext }
 export interface AskInput extends GroundingRequest { requestKey?: string }
 export interface AskResult { answer: string; grounding: GroundingResult; context: KnowledgeContext }
 export interface ImpactInput { targetId: string; context: KnowledgeContext; actor: ActorContext; prompt?: string }

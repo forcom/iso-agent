@@ -1,9 +1,9 @@
 import {requestHash} from './requests';
-import type {Action,ActorContext,AuthorizationDecision,KnowledgeBundle,KnowledgeContext,PolicyCondition,RecordType} from '../../../packages/contracts/src/index';
+import type {Action,ActorContext,ApprovalScope,AuthorizationDecision,KnowledgeBundle,KnowledgeContext,PolicyCondition,RecordType} from '../../../packages/contracts/src/index';
 import type {Env,Artifact,Revision} from '../types';
 import {all,assertContext,assertExpectedContext,commitMutation,event,get,getBundle,getKnowledgeContext,replay,update} from './storage';
 import {readRevision,resourceFor} from './artifacts';
-import {authorize} from './engine';
+import {authorize,authorizeConditionConfirmation} from './engine';
 import {sha256} from './markdown';
 import {canonical} from '../../../packages/knowledge/src/index';
 import {requireValue,textField} from './errors';
@@ -16,10 +16,10 @@ export async function assertRevisionVersion(expected:unknown,revision:Revision){
 }
 export function typeConditions(bundle:KnowledgeBundle,typeIds:string[]) {
  const conditions=bundle.policies.filter(p=>typeIds.includes(p.resourceTypeId)).flatMap(p=>p.conditions);
- for(const type of bundle.recordTypes.filter(t=>typeIds.includes(t.id)))for(const condition of [type.applicabilityCondition,type.approvalCondition,type.reviewCondition])if(condition)conditions.push(condition);
+ for(const type of bundle.recordTypes.filter(t=>typeIds.includes(t.id)))for(const condition of [type.applicabilityCondition,type.approvalCondition,type.reviewCondition,...(type.declaredConditions??[])])if(condition)conditions.push(condition);
  return [...new Map(conditions.map(c=>[c.field,c])).values()];
 }
-export function requiredDecisions(types:RecordType[],conditions:Revision['conditions'],requireConfirmed:boolean) {
+export function requiredDecisions(types:RecordType[],conditions:Revision['conditions'],requireConfirmed:boolean,approvalScope:ApprovalScope='outcome') {
  const unconfirmed:string[]=[];
  const applies=(condition:PolicyCondition|undefined):boolean|undefined=>{
   if(!condition)return false;
@@ -35,7 +35,7 @@ export function requiredDecisions(types:RecordType[],conditions:Revision['condit
   // Evaluate every condition before aggregating; Array.some short-circuiting must
   // never hide an unconfirmed condition on another constituent record type.
   const reviewCondition=applies(type.reviewCondition),approvalCondition=applies(type.approvalCondition);
-  return {recordTypeId:type.id,applicable,review:type.reviewRequired||reviewCondition===true,approval:type.approvalRequired||approvalCondition===true,requiredReviewRoleIds:type.requiredReviewRoleIds??[]};
+  return {recordTypeId:type.id,applicable,review:type.reviewRequired||reviewCondition===true,approval:type.approvalRequired||approvalCondition===true,requiredReviewRoleIds:approvalScope==='record'&&type.recordApproval?[]:type.requiredReviewRoleIds??[]};
  });
  return {review:byType.some(type=>type.review),approval:byType.some(type=>type.approval),byType,unconfirmed:[...new Set(unconfirmed)]};
 }
@@ -45,10 +45,11 @@ export function submissionStale(revision:Revision,context:KnowledgeContext) {
 export interface RecordActionAuthorization extends AuthorizationDecision {
  recordTypeIds:string[];perType:Array<{recordTypeId:string;authorization:AuthorizationDecision}>;
 }
-export async function authorizeRecordAction(env:Env,actor:ActorContext,artifact:Artifact,revision:Revision,context:KnowledgeContext,action:Action):Promise<RecordActionAuthorization> {
- const resource=resourceFor(artifact,revision);
+export async function authorizeRecordAction(env:Env,actor:ActorContext,artifact:Artifact,revision:Revision,context:KnowledgeContext,action:Action,approvalScope:ApprovalScope=revision.approvalScope??'outcome'):Promise<RecordActionAuthorization> {
+ const resource={...resourceFor(artifact,revision),approvalScope};
  const bundle=await getBundle(env,context),types=bundle.recordTypes.filter(type=>artifact.recordTypeIds.includes(type.id));
- const needs=requiredDecisions(types,revision.conditions,false),stale=submissionStale(revision,context);
+ if(!['record','outcome'].includes(approvalScope)||approvalScope==='record'&&(types.length!==artifact.recordTypeIds.length||types.some(type=>!type.recordApproval)))return {allowed:false,reason:'이 기록 유형에는 해당 승인 범위가 정의되지 않았습니다.',context,policyIds:[],evidenceRefs:[],recordTypeIds:[],perType:[]};
+ const needs=requiredDecisions(types,revision.conditions,false,approvalScope),stale=submissionStale(revision,context);
  const noStages=!needs.review&&!needs.approval&&!needs.unconfirmed.length;
  const canResubmit=stale&&['in_review','reviewed','rejected'].includes(revision.state)||revision.state==='in_review'&&noStages;
  if(action==='submit'&&canResubmit)resource.state='draft';
@@ -62,7 +63,7 @@ export async function authorizeRecordAction(env:Env,actor:ActorContext,artifact:
  for(const type of candidates){const authorization=await authorize(env,actor,action,{...resource,typeIds:[type.recordTypeId]},context);perType.push({recordTypeId:type.recordTypeId,authorization})}
  const allowed=perType.filter(item=>item.authorization.allowed);
  const stageMatches=action==='review'?revision.state==='in_review':action==='approve'?revision.state===(needs.review?'reviewed':'in_review'):['in_review','reviewed'].includes(revision.state);
- if(stale||!stageMatches||action!=='reject'&&needs.unconfirmed.length)return {allowed:false,reason:stale?'규정·역할 변경 후 다시 검토 요청이 필요합니다.':needs.unconfirmed.length?'유형별 적용 조건 확인이 필요합니다.':'필요한 검토 단계가 완료되지 않았습니다.',context,policyIds:[],evidenceRefs:[],recordTypeIds:[],perType};
+ if(stale||!stageMatches||action!=='reject'&&needs.unconfirmed.length)return {allowed:false,reason:stale?'규정·역할 변경 후 다시 검토 요청이 필요합니다.':needs.unconfirmed.length?'유형별 적용 조건 확인이 필요합니다.':'현재 단계에서는 이 결정을 수행할 수 없습니다.',context,policyIds:[],evidenceRefs:[],recordTypeIds:[],perType};
  const unique=<T>(items:T[])=>[...new Set(items)];
  return {allowed:allowed.length>0,reason:allowed.length?'해당 기록 유형의 규정상 권한 확인':perType.map(item=>item.authorization.reason).join('; ')||'이 유형에 필요한 결정 단계가 아닙니다.',context,policyIds:unique(allowed.flatMap(item=>item.authorization.policyIds)),assignmentIds:unique(allowed.flatMap(item=>item.authorization.assignmentIds??[])),evidenceRefs:allowed.flatMap(item=>item.authorization.evidenceRefs),engine:perType[0]?.authorization.engine,recordTypeIds:allowed.map(item=>item.recordTypeId),perType};
 }
@@ -90,8 +91,8 @@ export async function confirmConditions(env:Env,actor:ActorContext,artifactId:st
  for(const typeIds of confirmationTypes){
   let permission:AuthorizationDecision|undefined;
   for(const id of typeIds){
-   const review=await authorize(env,actor,'review',{...resource,typeIds:[id]},context);
-   const approval=review.allowed?undefined:await authorize(env,actor,'approve',{...resource,typeIds:[id],state:'reviewed'},context);
+   const review=await authorizeConditionConfirmation(env,actor,'review',{...resource,typeIds:[id]},context);
+   const approval=review.allowed?undefined:await authorizeConditionConfirmation(env,actor,'approve',{...resource,typeIds:[id],state:'reviewed'},context);
    if(review.allowed||approval?.allowed){permission=review.allowed?review:approval;break}
   }
   requireValue(permission,403,'CONDITION_REVIEW_DENIED','해당 조건을 정의한 유형의 검토·승인 역할만 확인할 수 있습니다.');authorizations.push(permission);

@@ -1,4 +1,4 @@
-import type { ActorContext, ArtifactKind, KnowledgeContext, RevisionStatus, RoleAssignment } from '../../packages/contracts/src/index';
+import type { ActorContext, ApprovalScope, ArtifactKind, KnowledgeContext, RevisionStatus, RoleAssignment } from '../../packages/contracts/src/index';
 export interface Env {
   APP_NAME?:string; DB:D1Database; SOURCES:R2Bucket; ENGINE?:DurableObjectNamespace;
   ENGINE_URL?:string; OPENAI_API_KEY?:string; LLM_MODEL?:string; ASSETS?:Fetcher; ALLOW_FICTIONAL_PERSONNEL?:string;
@@ -21,6 +21,7 @@ export interface Revision {
   requesterPersonId?:string;
   implementerIds?:string[];
   auditedPersonIds?:string[];
+  approvalScope?:ApprovalScope;
   externalDesignation?:{confirmedBy:string;confirmedAt:string;approvalEvidenceId:string;sourceSha256:string};
   fictionalDesignation?:{authorizationReference:string;sourceSha256:string;configurationId:string};
   research?:{proposalId:string;jobId:string;resultId:string;proposalSha256:string};

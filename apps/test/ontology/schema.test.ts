@@ -4,6 +4,15 @@ import { buildRelease } from "../../packages/knowledge/src/index";
 import { corpus } from "../knowledge/fixture";
 
 describe("ontology", () => {
+  it("record_approval_requires_a_declared_scope_and_explicit_limitations", async () => {
+    const bundle = await buildRelease(await corpus());
+    bundle.policies[0].approvalScope = "invented" as never;
+    expect(validateActionPolicy(bundle.policies[0]).valid).toBe(false);
+    bundle.policies[0].approvalScope = "record";
+    expect(validateKnowledge(bundle).errors.some(issue => issue.code === "record_approval_scope")).toBe(true);
+    bundle.recordTypes.find(type => type.id === bundle.policies[0].resourceTypeId)!.recordApproval = {label:"Plan approval",limitations:"Execution remains pending"};
+    expect(validateKnowledge(bundle).valid).toBe(true);
+  });
   it("supports_requester_separation_without_substituting_author_identity", async () => {
     const policy = (await corpus()).mappings.policies[0];
     policy.separationCondition = "not_requester";

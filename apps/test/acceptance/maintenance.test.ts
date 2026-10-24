@@ -52,6 +52,31 @@ async function designation(){
  await env.DB.prepare('UPDATE assignments SET body=? WHERE id=?').bind(JSON.stringify(assignment),assignment.id).run();
 }
 describe('maintenance boundaries and recoverable D1/R2 changes',()=>{
+ it('resets only business record designations and restores their exact registry bytes and release metadata in a clone',async()=>{
+  const env=await environment(),baseline=await maintenance.snapshotMaintenance(env,target),record=await business();
+  const registry=JSON.stringify({version:1,designations:[{recordTypeId:'test-F01',action:'approve',personId:'approver',roleId:'approver',documentCode:'SYNTHETIC-BUSINESS',filename:'record.md',sourceSha256:(await get<any>(env,'revisions',record.revisionId)).sourceSha256,systemIds:[]}]}),hash=await sha256(registry),key=`record-designations/${hash}.json`;
+  const releaseRow=(await env.DB.prepare('SELECT * FROM releases WHERE id=?').bind(test.bundle.manifest.releaseId).first<any>())!,manifest=JSON.parse(releaseRow.body),withRegistry={...manifest,recordDesignationKey:key,recordDesignationSha256:hash};
+  await env.SOURCES.put(key,registry,{customMetadata:{purpose:'synthetic-business-designations'},httpMetadata:{contentType:'application/json'}});
+  await env.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(withRegistry),releaseRow.id).run();
+  const backup=await maintenance.snapshotMaintenance(env,target),restorePlan=await maintenance.planMaintenance(env,target,baseline,'restore-release');
+  expect(restorePlan.replaceRows.releases).toEqual([]);expect(restorePlan.deleteObjects).not.toContain(key);expect(restorePlan.preserveObjects).toContainEqual({key,sha256:hash});
+  const plan=await maintenance.planMaintenance(env,target,baseline,'reset-business');
+  expect(plan.replaceRows.releases).toEqual([{...releaseRow,body:JSON.stringify(manifest)}]);expect(plan.deleteObjects).toContain(key);expect(plan.preserveObjects.some(object=>object.key===key)).toBe(false);
+  await maintenance.applyMaintenance(env,target,baseline,plan);
+  expect(await env.DB.prepare('SELECT * FROM releases WHERE id=?').bind(releaseRow.id).first()).toEqual({...releaseRow,body:JSON.stringify(manifest)});
+  expect(await env.SOURCES.get(key)).toBeNull();expect(await (await env.SOURCES.get(releaseRow.object_key))!.json()).toEqual(test.bundle);
+  const current=await maintenance.snapshotMaintenance(env,target);await maintenance.restoreMaintenanceBackup(env,target,backup,current.stateHash);
+  expect((await maintenance.snapshotMaintenance(env,target)).stateHash).toBe(backup.stateHash);
+  expect(await env.DB.prepare('SELECT body FROM releases WHERE id=?').bind(releaseRow.id).first('body')).toBe(JSON.stringify(withRegistry));
+  const restored=(await env.SOURCES.get(key))!;expect(await restored.text()).toBe(registry);expect(restored.customMetadata).toEqual({purpose:'synthetic-business-designations'});expect(restored.httpMetadata?.contentType).toBe('application/json');
+ });
+ it('refuses a missing or invalid business designation pointer before reset planning',async()=>{
+  const env=await environment(),baseline=await maintenance.snapshotMaintenance(env,target),manifest=test.bundle.manifest;
+  await env.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify({...manifest,recordDesignationKey:`record-designations/${'0'.repeat(64)}.json`,recordDesignationSha256:'0'.repeat(64)}),manifest.releaseId).run();
+  await expect(maintenance.planMaintenance(env,target,baseline,'reset-business')).rejects.toThrow(/Preserved source object/);
+  await env.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify({...manifest,recordDesignationKey:'sources/not-a-business-object',recordDesignationSha256:'0'.repeat(64)}),manifest.releaseId).run();
+  await expect(maintenance.planMaintenance(env,target,baseline,'reset-business')).rejects.toThrow(/business record designation pointer/);
+ });
  it('repairs missing index bytes only in an explicit clone using the verified installed source hash',async()=>{
   const env=await environment(),source=test.bundle.sources.find(source=>source.kind==='index')!,key=`sources/${source.revisionId}/${source.sha256}.md`;await env.SOURCES.delete(key);
   const clone={...target,clone:true};expect((await rehearsal.repairCloneIndexes(env,clone,false)).missing.map(item=>item.key)).toEqual([key]);expect(await env.SOURCES.get(key)).toBeNull();

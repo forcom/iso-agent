@@ -1,10 +1,11 @@
-import type {ActorContext,KnowledgeContext,KnowledgeBundle,Entity,Relation,RoleAssignment,Person,Action,AuthorizationDecision,GraphResult,GraphOperation,EvidenceRef,EvidenceStatus} from '../../../packages/contracts/src/index';
+import type {ActorContext,KnowledgeContext,KnowledgeBundle,Entity,Relation,RoleAssignment,Person,Action,ApprovalScope,AuthorizationDecision,GraphResult,GraphOperation,EvidenceRef,EvidenceStatus} from '../../../packages/contracts/src/index';
 import type {Artifact,Env,Revision} from '../types';
 import {ApiError,requireValue} from './errors';
 import {all,assertContext,getBundle,getKnowledgeContext,loadRelease,requestMemo} from './storage';
 import {sha256} from './markdown';
 import {administratorAssignmentEligible} from '../routes/session';
 import {canonical} from '../../../packages/knowledge/src/index';
+import {restrictRecordDesignations,type DesignatedSource} from './record-designations';
 // ponytail: memoized per request only; every request still re-reads and re-hashes all R2 sources.
 // Cache verified source hashes by R2 etag across requests if revision counts make that slow.
 export async function snapshot(env:Env,context:KnowledgeContext) {
@@ -145,9 +146,26 @@ export async function queryGraph(env:Env,context:KnowledgeContext,operation:Grap
  const result=await engineCall<GraphResult>(env,'/query',{context,snapshot:engineSnapshot,query:{operation,...(targetId?{targetId}:{}),cursor}},context);
  assertContext(context,await getKnowledgeContext(env));return result;
 }
-export async function authorize(env:Env,actor:ActorContext,action:Action,resource:{id?:string;typeIds:string[];revisionId?:string;currentRevisionId?:string;state:string;systemIds?:string[];authorPersonId?:string;requesterPersonId?:string;reviewerPersonIds?:string[];ownerPersonId?:string;recipientPersonIds?:string[];implementerIds?:string[];auditedPersonIds?:string[];conditions?:Record<string,string|number|boolean>},context:KnowledgeContext):Promise<AuthorizationDecision> {
+type AuthorizationResource=DesignatedSource&{id?:string;typeIds:string[];revisionId?:string;currentRevisionId?:string;state:string;authorPersonId?:string;requesterPersonId?:string;reviewerPersonIds?:string[];ownerPersonId?:string;recipientPersonIds?:string[];implementerIds?:string[];auditedPersonIds?:string[];conditions?:Record<string,string|number|boolean>;approvalScope?:ApprovalScope};
+export async function authorize(env:Env,actor:ActorContext,action:Action,resource:AuthorizationResource,context:KnowledgeContext):Promise<AuthorizationDecision> {
+ return evaluateAuthorization(env,actor,action,resource,context,false);
+}
+export async function authorizeConditionConfirmation(env:Env,actor:ActorContext,action:'review'|'approve',resource:AuthorizationResource,context:KnowledgeContext):Promise<AuthorizationDecision&{purpose:'condition_confirmation'}> {
+ const decision=await evaluateAuthorization(env,actor,action,resource,context,true);
+ return {...decision,purpose:'condition_confirmation'};
+}
+async function evaluateAuthorization(env:Env,actor:ActorContext,action:Action,resource:AuthorizationResource,context:KnowledgeContext,conditionConfirmation:boolean):Promise<AuthorizationDecision> {
  const data=await snapshot(env,context);
  data.policies=data.policies.filter(p=>p.action===action && resource.typeIds.includes(p.resourceTypeId));
+ if(!conditionConfirmation)data.policies=data.policies.filter(policy=>policy.approvalScope?policy.approvalScope===(resource.approvalScope??'outcome'):action!=='approve'||(resource.approvalScope??'outcome')==='outcome');
+ data.policies=await restrictRecordDesignations(env,context,data.policies,actor.personId,resource);
+ // Confirming a source fact must not require that fact (or another control) to
+ // satisfy an approval outcome. Keep verified roles, scope, separation and exact
+ // revision checks; only this private path omits value predicates for the proof.
+ if(conditionConfirmation)data.policies=data.policies.map(policy=>{
+  const {conditions:_conditions,...scopeCondition}=policy.scopeCondition;
+  return {...policy,conditions:[],scopeCondition};
+ });
  const personRow=await env.DB.prepare('SELECT body FROM persons WHERE id=?').bind(actor.personId).first<{body:string}>();
  const person=personRow?JSON.parse(personRow.body):null;
  const admin=!!person&&administratorAssignmentEligible(person,data.assignments);

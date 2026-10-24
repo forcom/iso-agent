@@ -87,15 +87,16 @@ export async function main(args=process.argv.slice(2)) {
   await lock.writeFile(String(process.pid));
   if(values.screens){
    const code=values['sample-code'];assert.ok(code,'Screen run requires --sample-code <information_id>');
-   const row=plan.rows.find(row=>row.informationId===code);assert.ok(row&&!row.draftOnly&&!row.confirmations.length&&row.actors.approvers.length,'Choose an unconditional approval-required screen sample');
+   const row=plan.rows.find(row=>row.informationId===code);assert.ok(row&&!row.draftOnly&&(row.approvalScope??'outcome')==='outcome'&&row.actors.approvers.length,'Choose an outcome approval-required screen sample with source-backed confirmations');
    const exit=await new Promise<number|null>(done=>{const child=spawn('pnpm',['--filter','@iso-agent/test','exec','playwright','test','--config','acceptance/playwright.config.ts'],{cwd:repoRoot,stdio:'inherit',env:{...process.env,ACCEPTANCE_PLAN:planPath,ACCEPTANCE_RUN_ID:runId,ACCEPTANCE_TARGET:target,ACCEPTANCE_BASE_URL:baseUrl,ACCEPTANCE_SAMPLE_CODE:code,ACCEPTANCE_SCREEN_AUTHORIZED:hash(raw)}});child.on('error',()=>done(1));child.on('exit',done)});assert.equal(exit,0,'Acceptance screen sample failed');return;
   }
   const checkpointPath=resolve(directory,'checkpoint.json');let checkpoint:Checkpoint;
   try{checkpoint=JSON.parse(await readFile(checkpointPath,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;checkpoint={planSha256:hash(raw),operations:{},records:{}};}
   assert.equal(checkpoint.planSha256,hash(raw),'Plan changed for this run-id; use a new run-id');
   const persist=async()=>{await saveJson(checkpointPath,checkpoint);await saveJson(resolve(directory,'records.json'),Object.values(checkpoint.records));};
-  let status='failed';try{await runRecords({plan,runId,http,checkpoint,readSource:original,persist,record:async entry=>{await appendFile(resolve(directory,'results.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600});}});status='passed';}
-  finally{await saveJson(resolve(directory,'run-report.json'),{kind:'acceptance-api-run',status,target,runId,baseUrl,planSha256:hash(raw),coverage:'P-7 API runner only; this report is not AT-01..20 acceptance',records:Object.values(checkpoint.records).map(row=>({informationId:row.informationId,verification:row.verification})),finishedAt:new Date().toISOString()});}
+  let status='failed';try{await runRecords({plan,runId,http,checkpoint,readSource:original,persist,record:async entry=>{await appendFile(resolve(directory,'results.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600});}});status=Object.values(checkpoint.records).some(row=>row.expectedOutcome==='approval-denied')?'blocked':'passed';}
+  finally{await saveJson(resolve(directory,'run-report.json'),{kind:'acceptance-api-run',status,target,runId,baseUrl,planSha256:hash(raw),coverage:'P-7 API runner only; expected denial does not complete approval/circulation and this report is not AT-01..20 acceptance',records:Object.values(checkpoint.records).map(row=>({informationId:row.informationId,verification:row.verification,expectedOutcome:row.expectedOutcome,appState:row.appState})),finishedAt:new Date().toISOString()});}
+  if(status!=='passed')process.exitCode=1;
   console.log(JSON.stringify({status,records:plan.rows.length,directory}));
  }finally{await lock.close();await rm(resolve(directory,'run.lock'));}
 }

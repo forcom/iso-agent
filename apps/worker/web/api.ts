@@ -1,4 +1,4 @@
-import type { RegulationType } from '../../packages/contracts/src/index';
+import type { ApprovalScope, RegulationType } from '../../packages/contracts/src/index';
 
 export type Item = { id: string; title?: string; name?: string; label?: string; kind?: string; type?: string; [key: string]: unknown };
 export type Evidence = { id?: string; artifactId?: string; revisionId: string; sourceHash?: string; sourceSha256?: string; quote?: string; lineStart?: number; lineEnd?: number; [key: string]: unknown };
@@ -8,7 +8,7 @@ export type Me = { actor: Person | null; roles: Item[]; context: Context | null;
 export type Artifact = Item & { documentCode: string; kind: string; regulationType?: RegulationType; recordTypeId?: string; recordTypeIds?: string[]; systemIds?: string[]; workingRevisionId?: string; effectiveRevisionId?: string };
 export type Revision = Item & { artifactId: string; state?: string; status?: string; sourceHash?: string; sourceSha256?: string; createdAt?: string; evidenceStatus?: string; research?:{proposalId:string;jobId:string;resultId:string;proposalSha256:string} };
 export type Action = { action: string; allowed: boolean; reason?: string; policyIds: string[]; evidenceRefs: Evidence[] };
-export type ActionSet = { conditions?: {field: string; kind?: 'person' | 'people'; reason: string; evidenceRefs: Evidence[]; value: boolean | string | string[] | null}[]; actions: Action[]; context: Context; revisionId: string; revisionVersion: string; state: string };
+export type ActionSet = { conditions?: {field: string; kind?: 'person' | 'people'; reason: string; evidenceRefs: Evidence[]; value: boolean | string | string[] | null}[]; actions: Action[]; context: Context; revisionId: string; revisionVersion: string; state: string; approvalScope?: ApprovalScope; recordApproval?: {label:string;limitations:string} };
 export type Detail = { artifact: Artifact; revisions: Revision[]; events: Item[]; relations?: Item[] };
 export type Content = { revision: Revision; markdown: string; evidenceStatus: string };
 export type Collection<T = Item> = { items: T[]; total?: number; cursor?: string | null };

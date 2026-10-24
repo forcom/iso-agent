@@ -1,12 +1,12 @@
 import {requestHash} from './requests';
-import type {ActorContext,CirculationInput,KnowledgeContext,Person} from '../../../packages/contracts/src/index';
+import type {ActorContext,ApprovalScope,CirculationInput,KnowledgeContext,Person} from '../../../packages/contracts/src/index';
 import type {Env,Artifact,Revision} from '../types';
 import {get,getKnowledgeContext,assertContext,assertExpectedContext,replay,commitMutation,event} from './storage';
 import {resourceFor,readRevision} from './artifacts';
 import {requireAuthorization,engineCall} from './engine';
 import {sha256} from './markdown';
 import {requireValue,stringList,textField} from './errors';
-export interface Circulation {id:string;revisionId:string;artifactId:string;recipientIds:string[];purpose:string;createdBy:string;at:string;context:KnowledgeContext}
+export interface Circulation {id:string;revisionId:string;artifactId:string;recipientIds:string[];purpose:string;createdBy:string;at:string;context:KnowledgeContext;approvalScope?:ApprovalScope}
 export async function createCirculation(env:Env,actor:ActorContext,input:CirculationInput) {
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('circulation.create',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
@@ -16,7 +16,7 @@ export async function createCirculation(env:Env,actor:ActorContext,input:Circula
  await readRevision(env,revision.id);
  const recipients=stringList(input.recipientIds,'recipientIds');requireValue(recipients.length>0,422,'RECIPIENT_REQUIRED','수신자를 지정해 주세요.');
  for(const id of recipients)requireValue((await get<Person>(env,'persons',id)).active,422,'RECIPIENT_INACTIVE','유효한 수신자를 선택해 주세요.');
- const id=crypto.randomUUID(),circulation:Circulation={id,revisionId:revision.id,artifactId:artifact.id,recipientIds:recipients,purpose:textField(input.purpose,'purpose'),createdBy:actor.personId,at:new Date().toISOString(),context};
+ const id=crypto.randomUUID(),circulation:Circulation={id,revisionId:revision.id,artifactId:artifact.id,recipientIds:recipients,purpose:textField(input.purpose,'purpose'),createdBy:actor.personId,at:new Date().toISOString(),context,approvalScope:revision.approvalScope??'outcome'};
  return commitMutation(env,actor,key,hash,context,{circulationId:id,revisionId:revision.id,recipientIds:recipients,context:{...context,dataRevision:context.dataRevision+1}},[env.DB.prepare('INSERT INTO circulations VALUES(?,?,?)').bind(id,revision.id,JSON.stringify(circulation)),event(env,artifact.id,{kind:'circulation_created',circulationId:id,revisionId:revision.id,actorId:actor.personId,authorization,context})]);
 }
 export async function confirmReceipt(env:Env,actor:ActorContext,input:{circulationId:string;revisionId:string;kind:'received'|'understood';requestKey:string;expectedContext:KnowledgeContext}) {

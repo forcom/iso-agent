@@ -11,14 +11,14 @@ test('AT-04/12/13/16 representative upload, decisions, V2 and personal receipts 
  const row=plan.rows.find(row=>row.informationId===process.env.ACCEPTANCE_SAMPLE_CODE)!;
  const directory=resolve(root,'output/test/acceptance',process.env.ACCEPTANCE_RUN_ID!,plan.target,'screens');await mkdir(directory,{recursive:true});
  const original=await readFile(resolve(root,row.sourcePath));expect(hash(original)).toBe(row.sourceSha256);
- const evidence:any[]=[];let artifactId='',lastRevisionId='',status='failed';
+ const evidence:any[]=[];let artifactId='',lastRevisionId='',status='failed',rejectionChecked=false;
  page.on('dialog',dialog=>void dialog.accept());
  const actor=async(personId:string)=>{
   await page.getByRole('combobox',{name:'직원 선택',exact:true}).selectOption(personId);
   await expect(page.getByRole('combobox',{name:'직원 선택',exact:true})).toHaveValue(personId);
   await expect(page.getByText('자료를 불러오는 중입니다…',{exact:true})).toHaveCount(0);
  };
- const decisions=async()=>{const tab=page.getByRole('tab',{name:'판단·이력',exact:true});if(await tab.isVisible())await tab.click();};
+ const decisions=async()=>{if((page.viewportSize()?.width??1440)>=900)return;const tab=page.getByRole('tab',{name:'판단·이력',exact:true});await expect(tab).toBeVisible();await tab.click();await expect(tab).toHaveAttribute('aria-selected','true');};
  const postClick=async(name:string,path:string)=>{
   const started=Date.now(),response=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===path);
   await page.getByRole('button',{name,exact:true}).click();const result=await response;expect(result.ok()).toBe(true);
@@ -39,9 +39,35 @@ test('AT-04/12/13/16 representative upload, decisions, V2 and personal receipts 
   evidence.push({operation:'upload',kind:path==='/api/records'?'new-record':'new-revision',path,status:201,durationMs:Date.now()-started,artifactId,revisionId:lastRevisionId,sourceSha256:hash(bytes),context:result.context});return result;
  };
  const approve=async()=>{
+  for(const proof of row.confirmations){
+   await actor(proof.personId);await decisions();
+   const summary=page.locator('summary').filter({hasText:/^적용 조건 확인 ·/});await expect(summary).toBeVisible();
+   const details=summary.locator('..');if(await details.getAttribute('open')===null)await summary.click();
+   await details.locator(`select[name="${proof.field}"]`).selectOption(Array.isArray(proof.value)?proof.value:String(proof.value));
+   for(const [suffix,value] of Object.entries({start:proof.lineStart,end:proof.lineEnd,quote:proof.quote,comment:proof.comment}))await details.locator(`[name="${proof.field}-${suffix}"]`).fill(String(value));
+   await postClick('조건 확인 제출',`/api/records/${artifactId}/conditions`);
+  }
   await actor(row.actors.submitter);await decisions();await postClick('검토 요청',`/api/records/${artifactId}/submit`);
-  for(const personId of row.actors.reviewers){await actor(personId);await decisions();const button=page.getByRole('button',{name:'검토 완료',exact:true});if(await button.isVisible()&&await button.isEnabled()){await page.getByLabel('검토 의견',{exact:true}).fill('인수시험: 이 버전 원문 확인');await postClick('검토 완료',`/api/revisions/${lastRevisionId}/decisions`);}}
-  for(const personId of row.actors.approvers){await actor(personId);await decisions();const button=page.getByRole('button',{name:'승인',exact:true});if(await button.isVisible()&&await button.isEnabled())await postClick('승인',`/api/revisions/${lastRevisionId}/decisions`);}
+  if(!rejectionChecked){
+   await actor(row.actors.reviewers[0]);await decisions();
+   const previous=(await (await page.request.get(`/api/artifacts/${artifactId}`)).json()).revisions.find((item:any)=>item.id===lastRevisionId);
+   const oldActions=await (await page.request.get(`/api/records/${artifactId}/actions?revisionId=${lastRevisionId}`)).json();
+   await postClick('검토 완료',`/api/revisions/${lastRevisionId}/decisions`);
+   await actor(row.actors.approvers[0]);await decisions();await page.getByLabel('검토 의견',{exact:true}).fill('인수시험: 반려 후 새 검토 회차 확인');
+   await postClick('반려',`/api/revisions/${lastRevisionId}/decisions`);
+   const rejected=(await (await page.request.get(`/api/artifacts/${artifactId}`)).json()).revisions.find((item:any)=>item.id===lastRevisionId);expect(rejected.state).toBe('rejected');
+   await actor(row.actors.submitter);await decisions();await postClick('검토 요청',`/api/records/${artifactId}/submit`);
+   const resubmitted=await (await page.request.get(`/api/artifacts/${artifactId}`)).json(),current=resubmitted.revisions.find((item:any)=>item.id===lastRevisionId);
+   expect(current.submissionId).not.toBe(previous.submissionId);expect(current.reviewedBy).toEqual([]);expect(current.approvedBy).toEqual([]);expect(current.state).toBe('in_review');
+   expect(resubmitted.events.some((event:any)=>event.kind==='review'&&event.submissionId===previous.submissionId)).toBe(true);
+   await actor(row.actors.reviewers[0]);await decisions();const me=await (await page.request.get('/api/me')).json();
+   const stale=await page.request.post(`/api/revisions/${lastRevisionId}/decisions`,{headers:{'X-Session-Version':String(me.sessionVersion)},data:{decision:'review',comment:'인수시험: 이전 검토 회차의 결정은 재사용할 수 없음',requestKey:crypto.randomUUID(),expectedContext:me.context,expectedRevisionVersion:oldActions.revisionVersion}});
+   expect(stale.status()).toBe(409);expect((await stale.json()).error.code).toBe('REVISION_CONFLICT');
+   expect((await (await page.request.get('/api/me')).json()).context).toEqual(me.context);
+   evidence.push({operation:'reject-resubmit-and-stale-round-denied',revisionId:lastRevisionId,priorSubmissionId:previous.submissionId,submissionId:current.submissionId,status:409});rejectionChecked=true;
+  }
+  for(const personId of row.actors.reviewers){await actor(personId);await decisions();await expect(page.getByRole('button',{name:'검토 완료',exact:true})).toBeEnabled();await page.getByLabel('검토 의견',{exact:true}).fill('인수시험: 이 버전 원문 확인');await postClick('검토 완료',`/api/revisions/${lastRevisionId}/decisions`);}
+  for(const personId of row.actors.approvers){await actor(personId);await decisions();await expect(page.getByRole('button',{name:'승인',exact:true})).toBeEnabled();await postClick('승인',`/api/revisions/${lastRevisionId}/decisions`);}
   const detail=await (await page.request.get(`/api/artifacts/${artifactId}`)).json();expect(detail.artifact.effectiveRevisionId).toBe(lastRevisionId);expect(detail.revisions.find((revision:any)=>revision.id===lastRevisionId).state).toBe('approved');
  };
  const circulate=async()=>{

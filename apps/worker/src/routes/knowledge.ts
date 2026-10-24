@@ -5,19 +5,17 @@ import {all,getBundle,getKnowledgeContext,assertContext} from '../lib/storage';
 import {queryGraph,snapshot} from '../lib/engine';
 import {answerQuestion,selectGrounding} from '../lib/llm';
 import {requireValue,textField} from '../lib/errors';
-import {markdownDownload,parseMarkdown,sha256} from '../lib/markdown';
+import {markdownDownload} from '../lib/markdown';
+import {readIndexSource} from '../lib/source-index';
 export const knowledgeRoutes=new Hono<AppEnv>();
 knowledgeRoutes.get('/source-index/:revisionId',async c=>{
  const context=await getKnowledgeContext(c.env),bundle=await getBundle(c.env,context);
  const source=bundle.sources.find(item=>item.kind==='index'&&item.revisionId===c.req.param('revisionId'));
  requireValue(source,404,'NOT_FOUND','목차 원문을 찾을 수 없습니다.');
- const object=await c.env.SOURCES.get(`sources/${source.revisionId}/${source.sha256}.md`);
- requireValue(object,422,'SOURCE_UNAVAILABLE','원본을 확보할 수 없습니다.');
- const bytes=new Uint8Array(await object.arrayBuffer());requireValue(await sha256(bytes)===source.sha256,422,'SOURCE_CHANGED','원본 해시가 일치하지 않습니다.');
- const parsed=await parseMarkdown('index.md',bytes);requireValue(parsed.textSha256===source.textSha256,422,'SOURCE_CHANGED','추출 텍스트 해시가 일치하지 않습니다.');
+ const {bytes,markdown}=await readIndexSource(c.env,source);
  assertContext(context,await getKnowledgeContext(c.env));
  if(c.req.query('download')==='1')return markdownDownload(bytes,`${source.code}.md`);
- return c.json({source:{revisionId:source.revisionId,title:source.title,code:source.code,kind:source.kind,sha256:source.sha256},markdown:parsed.markdown,evidenceStatus:'verified',context});
+ return c.json({source:{revisionId:source.revisionId,title:source.title,code:source.code,kind:source.kind,sha256:source.sha256},markdown,evidenceStatus:'verified',context});
 });
 knowledgeRoutes.get('/entities',async c=>{
  const context=await getKnowledgeContext(c.env),data=await snapshot(c.env,context),bundle=data.bundle;let items=data.entities;

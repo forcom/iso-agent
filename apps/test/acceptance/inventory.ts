@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {posix} from 'node:path';
 import type {KnowledgeContext,RecordType} from '../../packages/contracts/src/index';
 import {stable} from './client';
-import type {PermissionOracle} from './permissions';
+import {permissionCandidates,type PermissionOracle} from './permissions';
 
 export const DEMO_URL='https://iso-agent-demo.your-e37.workers.dev';
 export const DRAFT_ONLY='AIDU-AIP-09-03-F01-2026-001';
@@ -12,6 +12,7 @@ export type Confirmation={field:string;value:boolean|string|string[];quote:strin
 export type InventoryRow={
  sourcePath:string;sourceSha256:string;informationId:string;formId:string;templateVersion:string;title:string;
  recordTypeId:string;templateRevisionId:string;targetSystemId:string;targetSystemCode?:string;draftOnly:boolean;
+ approvalScope?:'record'|'outcome';
  actors:{author:string;submitter:string;reviewers:string[];approvers:string[];circulator:string;recipients:string[]};
  confirmations:Confirmation[];issues:string[];
 };
@@ -60,6 +61,8 @@ export function assertInventory(plan:Inventory,count=74) {
  for(const row of plan.rows){
   assert.equal(row.draftOnly,row.informationId===DRAFT_ONLY,'Draft-only record policy mismatch');assert.deepEqual(row.issues,[],`Unresolved preparation: ${row.informationId}`);
   const type=plan.recordTypes.find(type=>type.id===row.recordTypeId);assert.ok(type,'Missing installed type');assert.equal(type.code,row.formId);assert.equal(type.templateRevisionId,row.templateRevisionId);
+  assert.ok(row.approvalScope===undefined||['record','outcome'].includes(row.approvalScope),'Invalid approval scope');
+  if(row.approvalScope==='record')assert.ok(!row.draftOnly&&type.recordApproval,'Record approval scope is not defined for this type');
   for(const condition of [type.applicabilityCondition,type.reviewCondition,type.approvalCondition].filter(Boolean))if(!row.draftOnly)assert.ok(row.confirmations.some(proof=>proof.field===condition!.field&&typeof proof.value==='boolean'),`Missing condition ${condition!.field}`);
   assert.ok(row.actors.author&&row.actors.submitter&&row.actors.reviewers.length,'Missing actor selection');
   if(!row.draftOnly&&(type.approvalRequired||type.approvalCondition&&row.confirmations.some(proof=>proof.field===type.approvalCondition!.field&&proof.value===type.approvalCondition!.equals)))assert.ok(row.actors.approvers.length,'Missing required approver');
@@ -71,7 +74,8 @@ export function validateActors(plan:Inventory,oracle:PermissionOracle):void {
   const allowed=(action:string,id:string)=>{
    const person=plan.persons.find(person=>person.id===id);assert.ok(person,`Unknown actor ${id}`);
    const permission=oracle.rows.find(permission=>permission.formCode===row.formId&&permission.action===action);
-   return permission?.allowedPersons.some(candidate=>candidate.personaId===person.personaId&&candidate.name===person.name&&(candidate.scope==='all'||!!row.targetSystemId&&candidate.scope===(row.targetSystemCode??row.targetSystemId)));
+   if(permission?.recordCases&&!row.targetSystemId)return false;
+   return permissionCandidates(permission,{informationId:row.informationId,sourcePath:row.sourcePath,sourceSha256:row.sourceSha256,systemCode:row.targetSystemCode??row.targetSystemId}).some(candidate=>candidate.personaId===person.personaId&&candidate.name===person.name&&(candidate.scope==='all'||!!row.targetSystemId&&candidate.scope===(row.targetSystemCode??row.targetSystemId)));
   };
   for(const [action,ids] of [['create',[row.actors.author]],['submit',[row.actors.submitter]],['review',row.actors.reviewers],['approve',row.actors.approvers],['circulate',[row.actors.circulator]]] as Array<[string,string[]]>){
    if(row.draftOnly&&action!=='create')continue;

@@ -2,6 +2,14 @@ import {expect,it} from 'vitest';
 import {main,validatePrerequisites,validatePlan} from './cli';
 import {hash,type Inventory} from './inventory';
 import {stable} from './client';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+
+it('starts the real CLI and reports missing arguments instead of a circular import failure',()=>{
+ const result=spawnSync(process.execPath,['--import','tsx','acceptance/run.ts'],{cwd:fileURLToPath(new URL('..',import.meta.url)),encoding:'utf8',timeout:10_000});
+ expect(result.error).toBeUndefined();expect(result.status).toBe(1);
+ expect(result.stderr).toContain('Required: --target');expect(result.stderr).not.toContain('unsettled top-level await');
+});
 
 it('requires explicit target/run/plan and refuses a different remote URL before reads or writes',async()=>{
  await expect(main([])).rejects.toThrow(/Required/);
@@ -13,7 +21,7 @@ it('blocks an unconfirmed human oracle before reading originals or operational p
  const bytes=Buffer.from(JSON.stringify(oracle)),reads:string[]=[];
  const recordTypes=forms.map(code=>({id:code,code,templateRevisionId:`${code}-revision`}));
  const plan={schemaVersion:1,target:'local',baseUrl:'http://127.0.0.1:8787',oraclePath:'synthetic-oracle.json',oracleSha256:hash(bytes),recordTypes,rows:Array.from({length:74},(_,index)=>({sourcePath:`docs/records/synthetic-${index}.md`,informationId:`SYN-${index}`,formId:forms[index%54],recordTypeId:forms[index%54],templateRevisionId:`${forms[index%54]}-revision`,draftOnly:false,issues:[],confirmations:[],actors:{author:'synthetic',submitter:'synthetic',reviewers:['reviewer'],approvers:[],circulator:'synthetic',recipients:['recipient']}}))} as unknown as Inventory;
- await expect(validatePlan(plan,async path=>{reads.push(path);return bytes})).rejects.toThrow(/human confirmations/);
+ await expect(validatePlan(plan,async path=>{reads.push(path);return bytes})).rejects.toThrow(/human confirmation/i);
  expect(reads).toEqual(['synthetic-oracle.json']);
 });
 it('requires same-input completed local acceptance, verified reset rehearsal and a remote backup',async()=>{

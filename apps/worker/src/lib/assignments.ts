@@ -1,9 +1,9 @@
-import type { ActorContext, AppointmentSourceCandidate, AssignmentApplyInput, AssignmentMapping, AssignmentResult, KnowledgeContext, Person, RoleAssignment } from '../../../packages/contracts/src/index';
+import type { ActorContext, AppointmentSourceCandidate, AssignmentApplyInput, AssignmentMapping, AssignmentResult, AuthorizationDecision, KnowledgeContext, Person, RoleAssignment } from '../../../packages/contracts/src/index';
 import { canonical } from '../../../packages/knowledge/src/index';
 import type { Artifact, Env, Revision } from '../types';
 import { all, assertContext,assertExpectedContext, commitMutation, event, get, getBundle, getKnowledgeContext, replay, update } from './storage';
 import { readRevision, resourceFor } from './artifacts';
-import { requireAuthorization } from './engine';
+import { authorize, requireAuthorization } from './engine';
 import { ApiError, requireValue, textField } from './errors';
 import { appointmentSourceCandidates, candidateId, cells, fenceAfter } from './appointment-source';
 import { requestHash } from './requests';
@@ -112,20 +112,18 @@ async function mappedAssignments(actor:ActorContext,revision:Revision,decisionId
 }
 
 export async function listRoleAssignments(env:Env,actor:ActorContext) {
- requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
  const context=await getKnowledgeContext(env),[data,items]=await Promise.all([appointmentData(env,context),all<RoleAssignment>(env,'assignments')]),{bundle,artifacts}=data;
- const candidates:Array<{artifactId:string;revisionId:string;assignments:RoleAssignment[];sourceCandidates?:AppointmentSourceCandidate[];error?:string}>=[];
+ const candidates:Array<{artifactId:string;revisionId:string;assignments:RoleAssignment[];sourceCandidates?:AppointmentSourceCandidate[];authorization?:AuthorizationDecision;error?:string}>=[];
  for(const artifact of artifacts.filter(a=>a.kind==='record'&&a.recordTypeIds.some(id=>bundle.recordTypes.some(type=>type.id===id&&type.roleAssignment===true)))){
   const revision=await get<Revision>(env,'revisions',artifact.workingRevisionId);
   if(revision.state!=='approved')continue;
-  try{const candidate=await appointmentCandidates(env,revision.id,data);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates,...(candidate.assignmentsError?{error:candidate.assignmentsError.message}:{})})}
-  catch(error){if(!(error instanceof ApiError))throw error;candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:[],error:error.message})}
+  try{const candidate=await appointmentCandidates(env,revision.id,data),authorization=await authorize(env,actor,'apply_assignment',resourceFor(artifact,revision),context);candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:candidate.assignments,sourceCandidates:candidate.sourceCandidates,authorization,...(candidate.assignmentsError?{error:candidate.assignmentsError.message}:{})})}
+  catch(error){if(!(error instanceof ApiError)||error.status>=500)throw error;candidates.push({artifactId:artifact.id,revisionId:revision.id,assignments:[],error:error.message})}
  }
  assertContext(context,await getKnowledgeContext(env));return {items,candidates,context,persons:data.persons,roles:bundle.roles,systems:bundle.entities.filter(entity=>entity.type==='AISystem'),resources:artifacts.map(({id,title})=>({id,title}))};
 }
 
 export async function applyRoleAssignment(env:Env,actor:ActorContext,input:AssignmentApplyInput):Promise<AssignmentResult> {
- requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 자격이 필요합니다.');
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('assignment.apply',input);const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);
  requireValue((Array.isArray(input.assignments)&&input.assignments.length>0&&input.mappedAssignments===undefined)||(Array.isArray(input.mappedAssignments)&&input.mappedAssignments.length>0&&input.assignments===undefined),422,'ASSIGNMENTS_REQUIRED','기계용 후보 또는 한글 대조값 중 하나를 선택해 주세요.');

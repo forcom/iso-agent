@@ -31,7 +31,7 @@ export function Download({ text, filename, href, format = 'Markdown' }: { text: 
 
 export function MarkdownBody({ markdown, links = [] }: { markdown: string; links?: Artifact[] }) {
   const properties = markdown.match(/^\uFEFF?---\r?\n([\w-]+:[\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  return <div className="markdown-body">{properties && <details className="document-properties"><summary>문서 속성</summary><pre>{properties[1]}</pre></details>}<Markdown remarkPlugins={[remarkGfm]} components={{
+  return <div className="markdown-body">{properties && <details className="document-properties"><summary>문서 속성</summary><pre>{properties[1]}</pre></details>}<Markdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]} components={{
     table: ({ children }) => <div className="markdown-table" tabIndex={0} role="region" aria-label="문서 표"><table>{children}</table></div>,
     img: ({ alt }) => <span className="muted">[이미지: {alt || '설명 없음'} · 자동 불러오기 꺼짐]</span>,
     a: ({ href, children }) => {

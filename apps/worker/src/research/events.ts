@@ -18,7 +18,7 @@ export const eventDefinition={name:eventName,description:'ERP에서 예약한 �
 function callbackUrl(value:string){
  let u:URL;try{u=new URL(value)}catch{throw new ProtocolError(-32602,'Invalid callback URL')}
  // Only platform-owned destinations; production fetch also uses global_fetch_strictly_public.
- if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash||!['chatgpt.com','api.openai.com','chat.openai.com'].includes(u.hostname))throw new ProtocolError(-32602,'Callback destination is not allowed');
+ if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash||!['chatgpt.com','api.openai.com','connectors.api.openai.com','chat.openai.com'].includes(u.hostname))throw new ProtocolError(-32602,'Callback destination is not allowed');
  return u.href;
 }
 const subscriptionId=(url:string)=>sha256(JSON.stringify(['company-dots',eventName,{},url])).then(hash=>'sub_'+hash);

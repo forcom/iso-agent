@@ -11,9 +11,9 @@ export async function researchMcp(request:Request,env:Env,grantId:string){
   const capabilities={events:{}};server.server.registerCapabilities(capabilities as Parameters<typeof server.server.registerCapabilities>[0]);
   server.server.setRequestHandler('events/list',{params:z.object({cursor:z.string().optional()})},async()=>({events:[eventDefinition]}));
   server.server.setRequestHandler('events/subscribe',{params:subscribeSchema},async input=>{
-   console.info('research.subscription_requested');
+   console.info('research.subscription_requested',{callbackHost:URL.canParse(input.delivery.url)?new URL(input.delivery.url).hostname:'invalid',secretLength:input.delivery.secret.length});
    try{const result=await subscribeResearch(env,grantId,input);console.info('research.subscription_verified');return result}
-   catch(error){console.warn('research.subscription_failed',{code:error instanceof ProtocolError?error.code:null});throw error}
+   catch(error){console.warn('research.subscription_failed',{code:error instanceof ProtocolError?error.code:null,reason:error instanceof ProtocolError?error.message:'internal_error'});throw error}
   });
   server.server.setRequestHandler('events/unsubscribe',{params:unsubscribeSchema},async input=>unsubscribeResearch(env,input));
   server.registerTool('get_research_connection',{title:'조사 연결 상태',description:'회사 ERP 조사 연결 상태를 확인합니다.',inputSchema:z.object({}),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async()=>{

@@ -21,14 +21,14 @@ it('discovers Events and persists one verified encrypted subscription across req
 it('rejects untrusted callbacks, bad secrets and failed challenges before activation',async()=>{
  const diagnostics=vi.spyOn(console,'warn').mockImplementation(()=>{});
  t=await createTestEnvironment();enableDots(t);const token=await grantDots(t),fetch=vi.fn(async()=>Response.json({challenge:'wrong'}));vi.stubGlobal('fetch',fetch);
- for(const delivery of [{...subscription.delivery,url:'https://127.0.0.1/private'},{...subscription.delivery,url:'https://chatgpt.com.attacker.example/callback'},{...subscription.delivery,secret:'whsec_bad'}]){
+ for(const delivery of [{...subscription.delivery,url:'https://127.0.0.1/private'},{...subscription.delivery,url:'https://chatgpt.com.attacker.example/callback'},{...subscription.delivery,url:'https://connectors.api.openai.com.attacker.example/callback'},{...subscription.delivery,secret:'whsec_bad'}]){
   const response=await (await rpc(t,token.access_token,'events/subscribe',{...subscription,delivery})).json() as any;expect(response.error).toBeDefined();
  }
  expect(fetch).not.toHaveBeenCalled();
  const response=await (await rpc(t,token.access_token,'events/subscribe',subscription)).json() as any;
  expect(response.error.code).toBe(-32015);
  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_subscriptions').first('n')).toBe(0);
- expect(diagnostics).toHaveBeenCalledWith('research.subscription_failed',{code:-32015});
+ expect(diagnostics).toHaveBeenCalledWith('research.subscription_failed',{code:-32015,reason:expect.stringContaining('Callback verification failed')});
  expect(JSON.stringify(diagnostics.mock.calls)).not.toContain(subscription.delivery.secret);
  expect(JSON.stringify(diagnostics.mock.calls)).not.toContain(subscription.delivery.url);
  diagnostics.mockRestore();

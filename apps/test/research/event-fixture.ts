@@ -1,7 +1,7 @@
 import {expect,vi} from 'vitest';
 import {createHmac} from 'node:crypto';
 const secret='whsec_'+Buffer.alloc(32,7).toString('base64');
-export const subscription={name:'research.job_ready',arguments:{},delivery:{mode:'webhook',url:'https://chatgpt.com/mcp-events/synthetic',secret},cursor:null};
+export const subscription={name:'research.job_ready',arguments:{},delivery:{mode:'webhook',url:'https://connectors.api.openai.com/mcp-events/synthetic',secret},cursor:null};
 export function receiver(callback?:(event:any)=>Response|Promise<Response>){
  const original=globalThis.fetch;
  return vi.fn(async(input:any,init?:RequestInit)=>{

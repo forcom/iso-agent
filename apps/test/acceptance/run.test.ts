@@ -4,6 +4,9 @@ import {createTestEnvironment,type TestEnvironment} from '../support/environment
 import {createHttp} from './client';
 import {DRAFT_ONLY,hash,type Inventory} from './inventory';
 import {runRecords,type Checkpoint} from './run';
+import {syntheticBundle} from '../support/fixtures';
+import type {KnowledgeBundle} from '../../packages/contracts/src/index';
+import {canonical,sha256} from '../../packages/knowledge/src/index';
 
 let env:TestEnvironment;afterEach(async()=>env?.cleanup());
 function fixture(code='SYN-001') {
@@ -11,8 +14,9 @@ function fixture(code='SYN-001') {
  const row={sourcePath:'docs/records/synthetic.md',sourceSha256:hash(bytes),informationId:code,formId:'test-F01',templateVersion:'1.0',title:'Synthetic acceptance',recordTypeId:'test-F01',templateRevisionId:'test-tpl-rev-1',targetSystemId:'',draftOnly:code===DRAFT_ONLY,actors:{author:'author',submitter:'author',reviewers:['reviewer'],approvers:['approver'],circulator:'author',recipients:['reader']},confirmations:[],issues:[]};
  return {bytes,row};
 }
-async function setup(code?:string) {
- env=await createTestEnvironment();const {bytes,row}=fixture(code),logs:any[]=[];
+async function setup(code?:string,bundle?:KnowledgeBundle) {
+ if(bundle){bundle.manifest.manifestHash='';bundle.manifest.manifestHash=await sha256(canonical(bundle));}
+ env=await createTestEnvironment(bundle);const {bytes,row}=fixture(code),logs:any[]=[];
  const plan={schemaVersion:1,target:'local',baseUrl:'http://127.0.0.1:8787',context:{releaseId:env.bundle.manifest.releaseId,rulesHash:env.bundle.manifest.rulesHash,authorityRevision:0,dataRevision:0},persons:[],recordTypes:env.bundle.recordTypes,rows:[row]} as unknown as Inventory;
  const checkpoint:Checkpoint={planSha256:hash(JSON.stringify(plan)),operations:{},records:{}};
  const http=createHttp({baseUrl:plan.baseUrl,fetch:async(input,init)=>app.request(new Request(input,init),undefined,env.bindings)});
@@ -53,6 +57,28 @@ it('retries context conflicts once and stops on a denied decision',async()=>{
   return real(path,settings) as any;
  };
  await expect(runRecords(options)).rejects.toThrow('ACTION_DENIED');expect(conflicts).toBe(2);
+ expect(options.checkpoint.records['SYN-001'].verification).toBe('failed');
+ expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM circulations').first<{n:number}>())?.n).toBe(0);
+});
+it('verifies source-supported approval denial without approval, circulation or duplicate writes on resume',async()=>{
+ const bundle=await syntheticBundle();
+ for(const policy of bundle.policies.filter(p=>p.action==='approve'))policy.conditions=[{field:'requiredControlsVerified',equals:true,reason:'Synthetic controls must be verified',evidenceRefs:policy.evidenceRefs}];
+ const {options,logs}=await setup(undefined,bundle);
+ options.plan.rows[0].confirmations=[{field:'requiredControlsVerified',value:false,lineStart:7,lineEnd:7,quote:'# Synthetic acceptance',comment:'Synthetic pending-control case',personId:'reviewer'}];
+ await runRecords(options);
+ expect(options.checkpoint.records['SYN-001']).toMatchObject({appState:'reviewed',verification:'passed',expectedOutcome:'approval-denied'});
+ expect(logs).toEqual(expect.arrayContaining([expect.objectContaining({operation:'approval-denied:approver',status:403,error:'ACTION_DENIED'})]));
+ const before=await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first();await runRecords(options);
+ expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
+ expect((await env.bindings.DB.prepare('SELECT body FROM decisions').all<{body:string}>()).results.map(r=>JSON.parse(r.body)).some(r=>r.decision==='approve')).toBe(false);
+ expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM circulations').first<{n:number}>())?.n).toBe(0);
+});
+it('fails when the ERP approves a pending-control case instead of silently accepting the unexpected approval',async()=>{
+ const bundle=await syntheticBundle();
+ for(const policy of bundle.policies.filter(p=>p.action==='approve'))policy.conditions=[{field:'requiredControlsVerified',equals:false,reason:'Synthetic incorrect approval policy',evidenceRefs:policy.evidenceRefs}];
+ const {options}=await setup(undefined,bundle);
+ options.plan.rows[0].confirmations=[{field:'requiredControlsVerified',value:false,lineStart:7,lineEnd:7,quote:'# Synthetic acceptance',comment:'Synthetic pending-control case',personId:'reviewer'}];
+ await expect(runRecords(options)).rejects.toThrow(/expected.*403.*ACTION_DENIED/i);
  expect(options.checkpoint.records['SYN-001'].verification).toBe('failed');
  expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM circulations').first<{n:number}>())?.n).toBe(0);
 });

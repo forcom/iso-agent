@@ -13,7 +13,21 @@ import {containedMaintenancePath,openMaintenancePlatform,writeMaintenanceJson} f
 import {repoRoot} from '../support/environment';
 import {startTestEngine} from '../support/engine';
 import type {Env} from '../../worker/src/types';
+import type {GraphResult,Relation} from '../../packages/contracts/src/index';
 import {openStaging} from '../staging/platform';
+
+export function verifyMaintenanceTrace(trace:Pick<GraphResult,'relations'|'excluded'|'unknown'>|undefined,relations:Relation[]){
+ const hierarchy=new Set(relations.filter(row=>row.type==='subordinate_to').map(row=>row.id));
+ if(!hierarchy.size)return false;
+ assert.ok(trace&&trace.relations.some(row=>row.type==='subordinate_to'&&hierarchy.has(row.id)),'Hierarchy missing from trace');
+ assert.ok(!trace.unknown.some(row=>hierarchy.has(row.id)),'Unresolved hierarchy in trace');
+ // Applicability stays unknown until a real record supplies its condition; it is not broken provenance.
+ for(const excluded of trace.excluded){
+  const relation=relations.find(row=>row.id===excluded.id);
+  assert.ok(excluded.reason==='CONDITION_UNKNOWN'&&relation?.type==='requires_record_type'&&relation.reviewStatus==='validated'&&relation.conditionStatus==='unknown'&&relation.condition&&trace.unknown.some(row=>row.id===relation.id&&row.reason===relation.condition),`Unverified trace relation: ${excluded.id} ${excluded.reason}`);
+ }
+ return true;
+}
 
 async function files(root:string,path=root):Promise<string[]>{const result:string[]=[];for(const item of await readdir(path,{withFileTypes:true})){const full=resolve(path,item.name);if(item.isSymbolicLink())throw new Error(`State symlink refused: ${relative(root,full)}`);if(item.isDirectory())result.push(...await files(root,full));else if(item.isFile())result.push(full);else throw new Error('Unsupported state file')}return result.sort()}
 export async function stateTreeHash(path:string){return sha256(canonical(await Promise.all((await files(path)).map(async file=>({path:relative(path,file),sha256:await sha256(await readFile(file))})))))}
@@ -70,10 +84,10 @@ async function rehearse(env:Env,target:MaintenanceTarget,runId:string,directory:
  const plan=await planMaintenance(env,target,baseline,'reset-business');await writeMaintenanceJson(repoRoot,resolve(directory,'reset-plan.json'),plan);const result=await applyMaintenance(env,target,baseline,plan);assert.deepEqual(result.pendingObjects,[]);
  const after=await snapshotMaintenance(env,target);assert.equal((await applyMaintenance(env,target,baseline,plan)).alreadyApplied,true);assert.equal((await snapshotMaintenance(env,target)).stateHash,after.stateHash);
  assert.deepEqual(after.tables.assignments,baseline.tables.assignments);assert.deepEqual(after.tables.persons,baseline.tables.persons);assert.ok(!after.tables.artifacts.some(row=>row.id===record.artifactId));assert.equal(after.tables.sessions.length,0);assert.equal(after.tables.mutation_requests.length,0);
- const trace=hierarchy.length?await queryGraph(env,await getKnowledgeContext(env),'trace',hierarchy[0].objectId):undefined;assert.equal(trace?.excluded.length??0,0);
+ const trace=hierarchy.length?await queryGraph(env,await getKnowledgeContext(env),'trace',hierarchy[0].objectId):undefined,traceVerified=verifyMaintenanceTrace(trace,restoredBundle.relations);
  let indexCount=0;for(const source of bundle.sources.filter(source=>source.kind==='index')){const response=await app.request(`/api/source-index/${source.revisionId}`,{headers:await client(author.id)},env);assert.equal(response.status,200,await response.clone().text());indexCount++}
  const restoreFence=await snapshotMaintenance(env,target);await restoreMaintenanceBackup(env,target,backup,restoreFence.stateHash);assert.equal((await snapshotMaintenance(env,target)).stateHash,backup.stateHash);
- return {baselineHash:baseline.hash,backupHash:backup.hash,backupRestored:true,idempotent:true,checks:{persons:baseline.tables.persons.length,assignments:baseline.tables.assignments.length,hierarchyRelations:hierarchy.length,expectedHierarchyRelations:target.environment==='local'?38:hierarchy.length,traceVerified:!!trace&&trace.excluded.length===0,indexSources:indexCount,syntheticWorkflow:true,exactReleaseRestored:true,retainedReleaseHistory:true,immutableTriggers:true},planHash:plan.hash};
+ return {baselineHash:baseline.hash,backupHash:backup.hash,backupRestored:true,idempotent:true,checks:{persons:baseline.tables.persons.length,assignments:baseline.tables.assignments.length,hierarchyRelations:hierarchy.length,expectedHierarchyRelations:target.environment==='local'?38:hierarchy.length,traceVerified,unresolvedConditionalRelations:trace?.excluded??[],indexSources:indexCount,syntheticWorkflow:true,exactReleaseRestored:true,retainedReleaseHistory:true,immutableTriggers:true},planHash:plan.hash};
 }
 export async function runMaintenanceRehearsal(runId:string,repairIndexes=false){
  assert.match(runId,/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/);const directory=await containedMaintenancePath(repoRoot,resolve(repoRoot,'output/test/acceptance',runId,'rehearsal'));await mkdir(directory,{recursive:true,mode:0o700});

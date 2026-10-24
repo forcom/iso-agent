@@ -27,3 +27,13 @@ it('checks original bytes and explicit frontmatter before any upload',async()=>{
  await expect(validateSources([{...source,informationId:'forged'}],async()=>bytes)).rejects.toThrow(/information_id/);
  await expect(validateSources([{...source,sourcePath:'docs/records/../../.dev.vars'}],async()=>bytes)).rejects.toThrow(/source path/);
 });
+it('rejects a valid employee assigned to another record of the same form',()=>{
+ const source={...row,sourceSha256:hash(bytes),targetSystemId:'system-id',targetSystemCode:'synthetic',actors:{author:'person-1',submitter:'person-1',reviewers:['person-2'],approvers:[],circulator:'person-1',recipients:[]},confirmations:[]} as InventoryRow;
+ const first={personaId:'P01',name:'Author',scope:'all'},second={personaId:'P02',name:'Reviewer',scope:'all'};
+ const plan={persons:[{id:'person-1',...first},{id:'person-2',...second}],rows:[source]} as unknown as Inventory;
+ const oracle={rows:['create','submit','review','circulate'].map(action=>({formCode:'SYN-F01',action,allowedPersons:[first,second],recordCases:[{informationId:'SYN-001',sourcePath:source.sourcePath,sourceSha256:source.sourceSha256,systemCode:'synthetic',allowedPersons:[action==='review'?second:first]}]}))} as any;
+ expect(()=>validateActors(plan,oracle)).not.toThrow();
+ source.actors.reviewers=['person-1'];expect(()=>validateActors(plan,oracle)).toThrow(/oracle/);
+ source.actors.reviewers=['person-2'];source.sourceSha256=hash('changed');expect(()=>validateActors(plan,oracle)).toThrow(/oracle/);
+ source.sourceSha256=hash(bytes);source.targetSystemId='';expect(()=>validateActors(plan,oracle)).toThrow(/oracle/);
+});

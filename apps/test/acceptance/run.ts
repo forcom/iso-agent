@@ -6,7 +6,7 @@ import {message,type Client,type Http,type Json} from './client';
 import {DRAFT_ONLY,hash,requestKey,validateSources,type Inventory,type InventoryRow} from './inventory';
 
 type Operation={path:string;personId:string;payload:Json;multipart:boolean;attempt:number;result?:Json};
-export type RecordResult=InventoryRow & {artifactId:string|null;revisionId:string|null;appState:string|null;disposition:'new'|'existing'|null;error:string|null;verification:'unexecuted'|'running'|'passed'|'failed';context:KnowledgeContext|null};
+export type RecordResult=InventoryRow & {artifactId:string|null;revisionId:string|null;appState:string|null;disposition:'new'|'existing'|null;error:string|null;verification:'unexecuted'|'running'|'passed'|'failed';expectedOutcome:'draft'|'approval-denied'|'approved-or-registered';context:KnowledgeContext|null};
 export type Checkpoint={planSha256:string;operations:Record<string,Operation>;records:Record<string,RecordResult>};
 type RunOptions={plan:Inventory;runId:string;http:Http;checkpoint:Checkpoint;readSource:(path:string)=>Promise<Uint8Array>;persist:()=>Promise<void>;record:(entry:Json)=>Promise<void>};
 export function assertPinnedContext(expected:KnowledgeContext,current:KnowledgeContext) {
@@ -21,7 +21,7 @@ export async function runRecords({plan,runId,http,checkpoint,readSource,persist,
   assert.ok(cookie,'Missing session cookie');assert.equal(response.body.actor.personId,personId);assertPinnedContext(plan.context,response.body.context);
   current={personId,cookie,version:response.body.sessionVersion};clients.set(personId,current);return current;
  };
- for(const row of plan.rows)checkpoint.records[row.informationId]??={...row,artifactId:null,revisionId:null,appState:null,disposition:null,error:null,verification:'unexecuted',context:null};
+ for(const row of plan.rows)checkpoint.records[row.informationId]??={...row,artifactId:null,revisionId:null,appState:null,disposition:null,error:null,verification:'unexecuted',expectedOutcome:row.draftOnly?'draft':row.confirmations.some(proof=>proof.field==='requiredControlsVerified'&&proof.value===false)?'approval-denied':'approved-or-registered',context:null};
  await persist();
  for(const row of plan.rows){
   const result=checkpoint.records[row.informationId];result.verification='running';result.error=null;await persist();
@@ -41,7 +41,7 @@ export async function runRecords({plan,runId,http,checkpoint,readSource,persist,
    assertPinnedContext(plan.context,view.context);
    return needsRevision?{expectedContext:view.context,expectedRevisionVersion:view.revisionVersion,expectedState:view.state}:{expectedContext:view.context};
   };
-  const execute=async(operation:string,path:string,personId:string,fields:Json={},multipart=false,needsRevision=false)=>{
+  const execute=async(operation:string,path:string,personId:string,fields:Json={},multipart=false,needsRevision=false,expectDenied=false)=>{
    const request=key(operation);let pending=checkpoint.operations[request];
    if(pending?.result)return pending.result;
    if(!pending){pending={path,personId,payload:{...fields,...await fresh(personId,needsRevision),requestKey:request},multipart,attempt:0};checkpoint.operations[request]=pending;await persist();}
@@ -53,7 +53,8 @@ export async function runRecords({plan,runId,http,checkpoint,readSource,persist,
     const code=response.body?.error?.code;
     result.context=response.body.context??pending.payload.expectedContext;
     await record({...result,operation,requestKey:request,method:'POST',path,personId,attempt:pending.attempt,status:response.status,durationMs:response.durationMs,responseIds:Object.fromEntries(Object.entries(response.body).filter(([name])=>/Id$/.test(name))),error:code??null,at:new Date().toISOString()});
-    if(response.status>=200&&response.status<300){pending.result=response.body;await persist();return response.body;}
+    if(expectDenied&&response.status===403&&code==='ACTION_DENIED'){pending.result=response.body;await persist();return response.body;}
+    if(response.status>=200&&response.status<300){assert.ok(!expectDenied,`${operation}: expected HTTP 403 ACTION_DENIED, received HTTP ${response.status}`);pending.result=response.body;await persist();return response.body;}
     if(code==='DUPLICATE_CODE'&&operation==='upload')return {duplicate:true};
     if(response.status===409&&code==='CONTEXT_CONFLICT'&&pending.attempt===0){
      const refreshed=await fresh(personId,needsRevision);
@@ -90,14 +91,20 @@ export async function runRecords({plan,runId,http,checkpoint,readSource,persist,
     if(checkpoint.operations[key('submit')]||result.appState==='draft')await execute('submit',`/api/records/${result.artifactId}/submit`,row.actors.submitter,{revisionId:result.revisionId,comment:'Acceptance run: original source status is not approval'},false,true);
     await detail();
     for(const personId of row.actors.reviewers){const operation=`review:${personId}`;if(checkpoint.operations[key(operation)]||result.appState==='in_review')await execute(operation,`/api/revisions/${result.revisionId}/decisions`,personId,{decision:'review',comment:'Acceptance review of this exact original revision'},false,true);await detail();}
-    for(const personId of row.actors.approvers){const operation=`approve:${personId}`;if(checkpoint.operations[key(operation)]||result.appState==='reviewed')await execute(operation,`/api/revisions/${result.revisionId}/decisions`,personId,{decision:'approve',comment:'Acceptance approval of this exact original revision'},false,true);await detail();}
-    assert.ok(['approved','registered'].includes(result.appState??''),`Required decisions incomplete: ${result.appState}`);
-    const circulation=await execute('circulate',`/api/revisions/${result.revisionId}/circulations`,row.actors.circulator,{recipientIds:row.actors.recipients,purpose:`Acceptance ${runId}: receipt and understanding of exact revision`});
-    for(const personId of row.actors.recipients)for(const kind of ['received','understood'])await execute(`receipt:${personId}:${kind}`,`/api/circulations/${circulation.circulationId}/receipts`,personId,{revisionId:result.revisionId,kind});
+    if(result.expectedOutcome==='approval-denied'){
+     assert.equal(result.appState,'reviewed','Pending-control record must remain reviewed');assert.ok(row.actors.approvers.length,'Missing denial-test approver');
+     for(const personId of row.actors.approvers)await execute(`approval-denied:${personId}`,`/api/revisions/${result.revisionId}/decisions`,personId,{decision:'approve',comment:'Acceptance: unfulfilled controls must prevent unrestricted approval'},false,true,true);
+     const revision=await detail();assert.equal(revision.state,'reviewed');assert.deepEqual(revision.approvedBy??[],[],'Denied approval changed approval history');
+    }else{
+     for(const personId of row.actors.approvers){const operation=`approve:${personId}`;if(checkpoint.operations[key(operation)]||result.appState==='reviewed')await execute(operation,`/api/revisions/${result.revisionId}/decisions`,personId,{decision:'approve',comment:'Acceptance approval of this exact original revision'},false,true);await detail();}
+     assert.ok(['approved','registered'].includes(result.appState??''),`Required decisions incomplete: ${result.appState}`);
+     const circulation=await execute('circulate',`/api/revisions/${result.revisionId}/circulations`,row.actors.circulator,{recipientIds:row.actors.recipients,purpose:`Acceptance ${runId}: receipt and understanding of exact revision`});
+     for(const personId of row.actors.recipients)for(const kind of ['received','understood'])await execute(`receipt:${personId}:${kind}`,`/api/circulations/${circulation.circulationId}/receipts`,personId,{revisionId:result.revisionId,kind});
+    }
    }
    result.verification='passed';await persist();await record({...result,operation:'verify',method:'GET',status:200,durationMs:0,at:new Date().toISOString()});
   }catch(error){result.error=message(error,[...clients.values()].map(actor=>actor.cookie));result.verification='failed';await persist();await record({...result,operation:'failure',status:null,at:new Date().toISOString()});throw error;}
  }
  await validateSources(plan.rows,readSource);
 }
-if(process.argv[1]&&pathToFileURL(process.argv[1]).href===import.meta.url){const {main,fail}=await import('./cli');await main().catch(fail);}
+if(process.argv[1]&&pathToFileURL(process.argv[1]).href===import.meta.url)void import('./cli').then(({main,fail})=>main().catch(fail));

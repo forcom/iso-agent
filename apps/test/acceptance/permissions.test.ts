@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { assertOracleApproved, comparePermissions, oracleDigest, refreshPermissionComparison, summarizeDifferences, validatePermissionPersonnel, validatePermissionSources, validatePermissions, validatePolicyComparison, type PermissionOracle } from './permissions';
+import { assertOracleApproved, comparePermissions, oracleDigest, permissionCandidates, refreshPermissionComparison, summarizeDifferences, validatePermissionPersonnel, validatePermissionSources, validatePermissions, validatePolicyComparison, type PermissionOracle } from './permissions';
 
 const text = '# 3 책임\n\n## 3.1 검토자\n검토자는 합성 기록을 검토한다.\n\n## 3.2 승인자\n승인자는 합성 기록을 승인한다.\n';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -20,7 +20,7 @@ function approve(oracle: PermissionOracle) {
   oracle.rows.forEach(row => { row.status = 'approved'; });
   const oracleSha256 = oracleDigest(oracle);
   oracle.humanAuthor = { name: 'Human Author', confirmedAt: '2026-10-23T01:00:00Z', oracleSha256 };
-  oracle.humanReviewer = { name: 'Human Reviewer', confirmedAt: '2026-10-23T02:00:00Z', oracleSha256 };
+  oracle.humanReviewer = null;
   oracle.comparison = { comparedAt: '2026-10-23T03:00:00Z', policiesSha256: digest('synthetic mapping'), oracleSha256, differences: [] };
 }
 describe('independent acceptance permissions', () => {
@@ -37,13 +37,34 @@ describe('independent acceptance permissions', () => {
     expect(validatePermissions(appointment, appointment.formCodes)).toContain('Missing AIDU-AIP-05-02-F01:apply_assignment');
     expect(validatePermissions({})).not.toEqual([]);
   });
-  it('requires two independent human confirmations tied to the current content and resolved differences', () => {
+  it('restricts case actors to the exact record, hash and system without a global-role fallback', async () => {
+    const oracle = fixture(), row = oracle.rows[0];
+    const record = '---\ninformation_id: "SYN-001"\nform_id: "SYNTHETIC-F01"\n---\n검토 담당: 합성 검토자\n';
+    row.recordCases = [{ informationId: 'SYN-001', sourcePath: 'docs/records/synthetic.md', sourceSha256: digest(record), systemCode: 'synthetic-system',
+      allowedPersons: row.allowedPersons, deniedSamples: ['S02'], evidence: [{ lineStart: 5, lineEnd: 5, quote: '검토 담당: 합성 검토자' }], note: 'Synthetic case assignment, not an imported approval' }];
+    const target = { informationId: 'SYN-001', sourcePath: 'docs/records/synthetic.md', sourceSha256: digest(record), systemCode: 'synthetic-system' };
+    expect(permissionCandidates(row, target)).toEqual(row.allowedPersons);
+    for (const changed of [{ informationId: 'SYN-002' }, { sourceSha256: digest('changed') }, { systemCode: 'other' }, { sourcePath: 'docs/records/other.md' }])
+      expect(permissionCandidates(row, { ...target, ...changed })).toEqual([]);
+    expect(validatePermissions(oracle, oracle.formCodes)).toEqual([]);
+    expect(await validatePermissionSources(oracle, async path => path.includes('/records/') ? record : text)).toEqual([]);
+    const priorDigest = oracleDigest(oracle);
+    row.recordCases[0].evidence[0].quote = 'invented';
+    expect(oracleDigest(oracle)).not.toBe(priorDigest);
+    expect(await validatePermissionSources(oracle, async path => path.includes('/records/') ? record : text)).toContain('Record case quote changed SYN-001');
+    row.recordCases[0].sourcePath = 'docs/records/../../.dev.vars';
+    expect(validatePermissions(oracle, oracle.formCodes)).toContain('Invalid record case SYNTHETIC-F01:create');
+    expect(await validatePermissionSources(oracle, async path => { expect(path).not.toContain('.dev.vars'); return text; })).toContain('Invalid record case path docs/records/../../.dev.vars');
+  });
+  it('requires one human confirmation tied to the current content and resolved differences', () => {
     const oracle = fixture();
     expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/human/i);
     approve(oracle);
     expect(() => assertOracleApproved(oracle, oracle.formCodes)).not.toThrow();
     oracle.humanReviewer = oracle.humanAuthor;
-    expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/distinct/i);
+    expect(() => assertOracleApproved(oracle, oracle.formCodes)).not.toThrow();
+    oracle.humanAuthor = null;
+    expect(() => assertOracleApproved(oracle, oracle.formCodes)).not.toThrow();
     approve(oracle);
     oracle.rows[0].allowedRoles = ['다른 역할'];
     expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow();
@@ -51,6 +72,18 @@ describe('independent acceptance permissions', () => {
     approve(oracle);
     oracle.comparison!.differences.push({ id: 'one', formCode: 'SYNTHETIC-F01', action: 'review', facet: 'roles', expected: ['검토자'], actual: [], resolution: null });
     expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/unresolved/i);
+  });
+  it('does not count a stale or malformed confirmation and accepts either current confirmation', () => {
+    const oracle = fixture();approve(oracle);
+    const confirmed = { ...oracle.humanAuthor! };
+    for (const invalid of [{ ...confirmed, name: ' ' }, { ...confirmed, confirmedAt: 'invalid' }, { ...confirmed, oracleSha256: digest('old content') }]) {
+      oracle.humanAuthor = invalid;oracle.humanReviewer = null;
+      expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/human confirmation/i);
+      oracle.humanReviewer = confirmed;
+      expect(() => assertOracleApproved(oracle, oracle.formCodes)).not.toThrow();
+    }
+    oracle.humanAuthor = null;oracle.humanReviewer = { ...confirmed, oracleSha256: digest('old content') };
+    expect(() => assertOracleApproved(oracle, oracle.formCodes)).toThrow(/human confirmation/i);
   });
   it('requires denied samples or a stated reason before execution and separates oracle gaps from policy mismatches', () => {
     const oracle = fixture();

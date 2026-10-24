@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {posix} from 'node:path';
 import type {KnowledgeContext,RecordType} from '../../packages/contracts/src/index';
 import {stable} from './client';
-import type {PermissionOracle} from './permissions';
+import {permissionCandidates,type PermissionOracle} from './permissions';
 
 export const DEMO_URL='https://iso-agent-demo.your-e37.workers.dev';
 export const DRAFT_ONLY='AIDU-AIP-09-03-F01-2026-001';
@@ -71,7 +71,8 @@ export function validateActors(plan:Inventory,oracle:PermissionOracle):void {
   const allowed=(action:string,id:string)=>{
    const person=plan.persons.find(person=>person.id===id);assert.ok(person,`Unknown actor ${id}`);
    const permission=oracle.rows.find(permission=>permission.formCode===row.formId&&permission.action===action);
-   return permission?.allowedPersons.some(candidate=>candidate.personaId===person.personaId&&candidate.name===person.name&&(candidate.scope==='all'||!!row.targetSystemId&&candidate.scope===(row.targetSystemCode??row.targetSystemId)));
+   if(permission?.recordCases&&!row.targetSystemId)return false;
+   return permissionCandidates(permission,{informationId:row.informationId,sourcePath:row.sourcePath,sourceSha256:row.sourceSha256,systemCode:row.targetSystemCode??row.targetSystemId}).some(candidate=>candidate.personaId===person.personaId&&candidate.name===person.name&&(candidate.scope==='all'||!!row.targetSystemId&&candidate.scope===(row.targetSystemCode??row.targetSystemId)));
   };
   for(const [action,ids] of [['create',[row.actors.author]],['submit',[row.actors.submitter]],['review',row.actors.reviewers],['approve',row.actors.approvers],['circulate',[row.actors.circulator]]] as Array<[string,string[]]>){
    if(row.draftOnly&&action!=='create')continue;

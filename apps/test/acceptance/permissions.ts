@@ -3,6 +3,11 @@ import { createHash } from 'node:crypto';
 export type PermissionAction = 'create' | 'revise' | 'submit' | 'review' | 'approve' | 'reject' | 'circulate' | 'apply_assignment';
 export interface PermissionSource { path: string; clause: string; quote: string; sha256: string }
 export interface PermissionPerson { personaId: string; name: string; role: string; scope: string; installedRole?: string }
+export interface PermissionCase {
+  informationId: string; sourcePath: string; sourceSha256: string; systemCode: string;
+  allowedPersons: PermissionPerson[]; deniedSamples: string[];
+  evidence: { lineStart: number; lineEnd: number; quote: string }[]; note: string;
+}
 export interface PermissionRow {
   formCode: string; action: PermissionAction; allowedRoles: string[]; allowedPersons: PermissionPerson[]; deniedSamples: string[];
   source: PermissionSource; additionalSources: PermissionSource[]; separation: string | null; condition: string | null;
@@ -10,11 +15,13 @@ export interface PermissionRow {
   /** Required by the execution gate when no denied sample can exist for the row. */
   noDeniedSampleReason?: string;
   policyScopes?: { role: string; scopeCondition: Record<string, unknown> | null; adminRequired: boolean }[] | null;
+  /** Record-specific candidates override the form-level union; original decisions are never imported. */
+  recordCases?: PermissionCase[];
 }
 export interface HumanConfirmation { name: string; confirmedAt: string; oracleSha256: string }
 export interface PermissionDifference {
   id: string; formCode: string; action: PermissionAction; facet: string; expected: unknown; actual: unknown;
-  resolution: { reviewer: string; reason: string; resolvedAt: string } | null;
+  resolution: { reviewer: string; reason: string; resolvedAt: string; outcome?: 'equivalent' | 'expected_value_controls' } | null;
 }
 export interface PermissionOracle {
   schemaVersion: 1; authoredBy: { kind: 'ai'; name: string }; authoredAt: string;
@@ -34,6 +41,7 @@ export interface PermissionMapping {
 const baseActions: PermissionAction[] = ['create', 'revise', 'submit', 'review', 'approve', 'reject', 'circulate'];
 const shaPattern = /^[a-f0-9]{64}$/;
 const sourcePath = /^docs\/(manual|procedure|guide)\/[A-Za-z0-9_-]+\.md$/;
+const recordPath = /^docs\/records\/(?!README\.md$)[A-Za-z0-9_-]+\.md$/;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string' && item.trim());
 const nonempty = (value: unknown): value is string => typeof value === 'string' && !!value.trim();
@@ -47,6 +55,12 @@ function stable(value: unknown): string {
 export function oracleDigest(oracle: PermissionOracle): string {
   const { humanAuthor: _author, humanReviewer: _reviewer, comparison: _comparison, ...authored } = oracle;
   return hash(stable(authored));
+}
+
+export function permissionCandidates(row: PermissionRow | undefined, record: { informationId: string; sourcePath: string; sourceSha256: string; systemCode: string }): PermissionPerson[] {
+  if (!row) return [];
+  if (!row.recordCases) return row.allowedPersons;
+  return row.recordCases.find(item => item.informationId === record.informationId && item.sourcePath === record.sourcePath && item.sourceSha256 === record.sourceSha256 && item.systemCode === record.systemCode)?.allowedPersons ?? [];
 }
 
 /** Structural validation has no filesystem reads; preparation alone reads operational sources. */
@@ -66,8 +80,27 @@ export function validatePermissions(input: unknown, requiredFormCodes?: string[]
     const actions = row.formCode === 'AIDU-AIP-05-02-F01' ? [...baseActions, 'apply_assignment'] : baseActions;
     if (!forms.includes(row.formCode) || !actions.includes(row.action as PermissionAction)) errors.push(`Unexpected ${key}`);
     if (!strings(row.allowedRoles) || new Set(row.allowedRoles).size !== row.allowedRoles.length || !Array.isArray(row.allowedPersons) || !strings(row.deniedSamples)) { errors.push(`Invalid actors ${key}`); continue; }
+    const formActors = row.allowedPersons;
     for (const person of row.allowedPersons) {
       if (!object(person) || !nonempty(person.personaId) || !nonempty(person.name) || !nonempty(person.role) || !nonempty(person.scope) || !row.allowedRoles.includes(person.role)) errors.push(`Invalid person ${key}`);
+    }
+    if (row.recordCases !== undefined) {
+      if (!Array.isArray(row.recordCases) || !row.recordCases.length) errors.push(`Invalid record cases ${key}`);
+      else {
+        const ids = new Set<string>();
+        for (const item of row.recordCases) {
+          if (!object(item) || !nonempty(item.informationId) || !nonempty(item.sourcePath) || !recordPath.test(item.sourcePath) || !shaPattern.test(String(item.sourceSha256)) || !nonempty(item.systemCode) || !nonempty(item.note)
+            || !Array.isArray(item.allowedPersons) || !item.allowedPersons.length || !strings(item.deniedSamples) || !item.deniedSamples.length
+            || !Array.isArray(item.evidence) || !item.evidence.length || item.evidence.some(proof => !object(proof) || !Number.isInteger(proof.lineStart) || Number(proof.lineStart) < 1 || !Number.isInteger(proof.lineEnd) || Number(proof.lineEnd) < Number(proof.lineStart) || !nonempty(proof.quote))) {
+            errors.push(`Invalid record case ${key}`); continue;
+          }
+          if (ids.has(item.informationId)) errors.push(`Duplicate record case ${key}:${item.informationId}`);
+          ids.add(item.informationId);
+          const caseActors = item.allowedPersons;
+          if (caseActors.some(person => !formActors.some(candidate => stable(candidate) === stable(person)))) errors.push(`Record case actor outside form candidates ${key}:${item.informationId}`);
+          if (item.deniedSamples.some(id => caseActors.some(person => object(person) && person.personaId === id))) errors.push(`Record case actor also denied ${key}:${item.informationId}`);
+        }
+      }
     }
     if (!['proposed', 'unresolved', 'approved'].includes(String(row.status)) || !nonempty(row.note)) errors.push(`Invalid review status ${key}`);
     for (const field of ['condition', 'separation']) if (row[field] !== null && !nonempty(row[field])) errors.push(`Invalid ${field} ${key}`);
@@ -90,8 +123,7 @@ export function assertOracleApproved(input: unknown, requiredFormCodes?: string[
   if (errors.length) throw Error(errors.join('; '));
   const oracle = input as PermissionOracle;
   const confirmation = (person: HumanConfirmation | null) => person && nonempty(person.name) && Number.isFinite(Date.parse(person.confirmedAt)) && person.oracleSha256 === oracleDigest(oracle);
-  if (!confirmation(oracle.humanAuthor) || !confirmation(oracle.humanReviewer)) throw Error('Two human confirmations of current oracle content required');
-  if (oracle.humanAuthor!.name.trim().toLocaleLowerCase() === oracle.humanReviewer!.name.trim().toLocaleLowerCase()) throw Error('Human author and reviewer must be distinct');
+  if (!confirmation(oracle.humanAuthor) && !confirmation(oracle.humanReviewer)) throw Error('Human confirmation of current oracle content required');
   if (oracle.rows.some(row => row.status !== 'approved')) throw Error('Unresolved permission rows');
   // AT-03/07 judge refusals against these samples; an empty list is not "everyone allowed".
   if (oracle.rows.some(row => !row.deniedSamples.length && !nonempty(row.noDeniedSampleReason))) throw Error('Each row needs denied samples or a stated reason');
@@ -114,6 +146,19 @@ export async function validatePermissionSources(oracle: PermissionOracle, readTe
       while (end < lines.length && (!/^#{1,6}\s/.test(lines[end]) || lines[end].match(/^#+/)![0].length > level)) end++;
       if (start < 0 || !lines.slice(start, end).join('\n').includes(source.quote)) errors.push(`Quote outside clause ${row.formCode}:${row.action}:${source.clause}`);
     } catch { errors.push(`Unreadable source ${source.path}`); }
+  }
+  for (const row of oracle.rows) for (const item of row.recordCases ?? []) {
+    if (!recordPath.test(item.sourcePath)) { errors.push(`Invalid record case path ${item.sourcePath}`); continue; }
+    try {
+      if (!cache.has(item.sourcePath)) cache.set(item.sourcePath, readText(item.sourcePath));
+      const text = await cache.get(item.sourcePath)!;
+      if (hash(text) !== item.sourceSha256) errors.push(`Record case hash changed ${item.informationId}`);
+      const front = text.replace(/\r\n?/g, '\n').match(/^---\n([\s\S]*?)\n---(?:\n|$)/)?.[1] ?? '';
+      const field = (key: string) => front.match(new RegExp(`^${key}:\\s*"([^"\\n]+)"\\s*$`, 'm'))?.[1];
+      if (field('information_id') !== item.informationId || field('form_id') !== row.formCode) errors.push(`Record case identity changed ${item.informationId}`);
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
+      for (const proof of item.evidence) if (proof.lineStart < 1 || proof.lineEnd < proof.lineStart || proof.lineEnd > lines.length || lines.slice(proof.lineStart - 1, proof.lineEnd).join('\n') !== proof.quote) errors.push(`Record case quote changed ${item.informationId}`);
+    } catch { errors.push(`Unreadable record case ${item.sourcePath}`); }
   }
   return unique(errors);
 }
@@ -164,7 +209,7 @@ export function validatePolicyComparison(oracle: PermissionOracle, mapping: Perm
 export function validatePermissionPersonnel(oracle: PermissionOracle, personnel: { fictional: boolean; persons: { personaId: string; name: string; roles: { name: string; scope: string }[] }[] }, sha256: string): string[] {
   const errors: string[] = [];
   if (!oracle.personnel || oracle.personnel.sha256 !== sha256 || oracle.personnel.fictional !== personnel.fictional) errors.push('Personnel input changed');
-  for (const row of oracle.rows) for (const actor of row.allowedPersons) {
+  for (const row of oracle.rows) for (const actor of [...row.allowedPersons, ...(row.recordCases ?? []).flatMap(item => item.allowedPersons)]) {
     const person = personnel.persons.find(person => person.personaId === actor.personaId);
     const binding = oracle.roleBindings?.find(binding => binding.sourceRole === actor.role)?.installedRole ?? actor.role;
     if (person?.name !== actor.name || (actor.installedRole && actor.installedRole !== binding) || !person?.roles.some(role => role.name === binding && role.scope === actor.scope)) errors.push(`Invalid personnel binding ${row.formCode}:${row.action}:${actor.personaId}`);

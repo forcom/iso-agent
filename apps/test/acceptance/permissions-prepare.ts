@@ -35,13 +35,13 @@ const personnelText = await read('apps/seed/inputs/aidu-personnel.json');
 const mapping: PermissionMapping = JSON.parse(policyText);
 errors.push(...await validatePermissionSources(oracle, read));
 errors.push(...validatePermissionPersonnel(oracle, JSON.parse(personnelText), hash(personnelText)));
-const differences = comparePermissions(oracle, mapping);
 if (args.includes('--write-comparison') && errors.length === 0) {
   for (const row of oracle.rows) row.policyScopes ??= null;
   oracle.comparison = refreshPermissionComparison(oracle, mapping, hash(policyText), new Date().toISOString());
   await writeFile(oraclePath, `${JSON.stringify(oracle, null, 2)}\n`);
 }
 errors.push(...validatePolicyComparison(oracle, mapping, hash(policyText)));
+const differences = errors.length === 0 ? oracle.comparison!.differences : comparePermissions(oracle, mapping);
 let gateError: string | null = null;
 try { assertOracleApproved(oracle, [...formCodes]); } catch (error) { gateError = error instanceof Error ? error.message : String(error); }
 const report = {
@@ -51,6 +51,8 @@ const report = {
   unresolvedRowCount: oracle.rows.filter(row => row.status === 'unresolved').length,
   proposedRowCount: oracle.rows.filter(row => row.status === 'proposed').length,
   executionAllowed: errors.length === 0 && gateError === null, gateError, differenceSummary: summarizeDifferences(differences), differences,
+  unadjudicatedDifferenceCount: differences.filter(diff => !diff.resolution).length,
+  expectedValueControlsCount: differences.filter(diff => diff.resolution?.outcome === 'expected_value_controls').length,
 };
 const output = resolve(root, 'output/test/acceptance/permissions-preparation.json');
 await mkdir(dirname(output), { recursive: true });

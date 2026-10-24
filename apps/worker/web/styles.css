@@ -40,3 +40,5 @@
 @media(max-width:899px){.content-toolbar{align-items:flex-start}.data-fields>div,.data-fields .data-fields>div{grid-template-columns:minmax(0,1fr);gap:5px}.markdown-body h1{font-size:23px}.markdown-body h2{font-size:19px}.markdown-table th,.markdown-table td{padding:8px}.result-details{padding:8px 10px}}
 
 .research-card{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.research-card:last-child{border-bottom:0}.research-card p{margin-top:8px}.research-card .actions{margin-top:12px}
+
+.research-card>blockquote,.evidence-list blockquote .markdown-body p{white-space:pre-wrap;overflow-wrap:anywhere}

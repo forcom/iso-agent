@@ -10,6 +10,16 @@ async function ready(){await t.bindings.DB.prepare("UPDATE research_connection S
 async function job(){const actor=await t.select('author');return await (await requestResearch(t,actor,'/research/jobs',{definition:researchDefinition})).json() as any}
 
 describe('research scheduler and server execution contract',()=>{
+ it('runs three-hour slots once and coalesces a missed interval without replaying every slot',async()=>{
+  t=await createTestEnvironment();const admin=await t.select('admin');
+  const s=await createSchedule(t.bindings,admin,{requestKey:'three-hour',expectedContext:await getKnowledgeContext(t.bindings),definition:{...researchDefinition,timing:{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:''}}},'2025-12-31T14:00:00Z') as any;
+  await Promise.all([tickResearch(t.bindings,'2025-12-31T15:00:00Z'),tickResearch(t.bindings,'2025-12-31T15:00:00Z')]);
+  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_jobs').first('n')).toBe(1);
+  expect(await t.bindings.DB.prepare('SELECT next_at FROM research_schedules WHERE id=?').bind(s.id).first('next_at')).toBe('2025-12-31T18:00:00.000Z');
+  await tickResearch(t.bindings,'2026-01-01T02:59:59Z');
+  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_jobs').first('n')).toBe(2);
+  expect(await t.bindings.DB.prepare('SELECT next_at FROM research_schedules WHERE id=?').bind(s.id).first('next_at')).toBe('2026-01-01T03:00:00.000Z');
+ });
  it('coalesces missed slots and deduplicates simultaneous ticks without a Dots connection',async()=>{
   t=await createTestEnvironment();const admin=await t.select('admin');
   const s=await createSchedule(t.bindings,admin,{requestKey:'schedule',expectedContext:await getKnowledgeContext(t.bindings),definition:{...researchDefinition,timing:{kind:'daily',time:'09:00',startDate:'2026-01-01',endDate:''}}},'2026-01-01T00:00:00Z') as any;

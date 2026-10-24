@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, rememberCitation, type Evidence, type Item, label } from '../api';
+import { MarkdownBody } from './content';
 
 export { Source, Download, ResultDetails, DataValue, MarkdownBody } from './content';
 
@@ -16,7 +17,7 @@ export function Loading() { return <div role="status" className="empty">자료�
 export function PageTitle({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) { return <div className="page-title"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="actions">{actions}</div>}</div>; }
 export function Panel({ title, children, actions, className = '' }: { title?: string; children: ReactNode; actions?: ReactNode; className?: string }) { return <section className={`panel ${className}`}>{title && <div className="panel-heading"><h2>{title}</h2>{actions}</div>}<div className="panel-body">{children}</div></section>; }
 export function ItemList({ items, to, empty }: { items: Item[]; to: (item: Item) => string; empty?: string }) { return items.length ? <ul className="item-list">{items.map(item => <li key={item.id}><Link to={to(item)}><span>{label(item)}<small>{String(item.documentCode ?? item.id)}</small></span><Status value={String(item.state ?? item.status ?? 'candidate')}/></Link></li>)}</ul> : <Empty>{empty}</Empty>; }
-export function EvidenceList({ items = [] }: { items?: Evidence[] }) { return items.length ? <ul className="evidence-list">{items.map((item, i) => <li key={`${item.id ?? item.revisionId}-${i}`}><Link to={`/sources/${encodeURIComponent(item.revisionId)}?line=${item.lineStart ?? ''}&citation=${encodeURIComponent(`${item.revisionId}:${item.lineStart}:${item.lineEnd}`)}`} onClick={() => rememberCitation(`${item.revisionId}:${item.lineStart}:${item.lineEnd}`,item)}>{item.revisionId}{item.lineStart ? ` · ${item.lineStart}–${item.lineEnd ?? item.lineStart}행` : ''}</Link>{item.quote && <blockquote>{item.quote}</blockquote>}<small>{(item.sourceSha256 ?? item.sourceHash) ? `SHA-256 ${item.sourceSha256 ?? item.sourceHash}` : '해시 정보 미제공'}</small></li>)}</ul> : <p className="muted">연결된 인용이 없습니다.</p>; }
+export function EvidenceList({ items = [] }: { items?: Evidence[] }) { return items.length ? <ul className="evidence-list">{items.map((item, i) => <li key={`${item.id ?? item.revisionId}-${i}`}><Link to={`/sources/${encodeURIComponent(item.revisionId)}?line=${item.lineStart ?? ''}&citation=${encodeURIComponent(`${item.revisionId}:${item.lineStart}:${item.lineEnd}`)}`} onClick={() => rememberCitation(`${item.revisionId}:${item.lineStart}:${item.lineEnd}`,item)}>{item.revisionId}{item.lineStart ? ` · ${item.lineStart}–${item.lineEnd ?? item.lineStart}행` : ''}</Link>{item.quote && <blockquote><MarkdownBody markdown={item.quote}/></blockquote>}<small>{(item.sourceSha256 ?? item.sourceHash) ? `SHA-256 ${item.sourceSha256 ?? item.sourceHash}` : '해시 정보 미제공'}</small></li>)}</ul> : <p className="muted">연결된 인용이 없습니다.</p>; }
 export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const returnFocus = useRef(document.activeElement as HTMLElement);

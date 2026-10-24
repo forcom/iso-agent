@@ -23,12 +23,12 @@ export function publicSourceUrl(input:unknown):string {
 export function parseResearchDefinition(input:unknown):ResearchDefinition {
  requireValue(input&&typeof input==='object'&&!Array.isArray(input),422,'INVALID_INPUT','조사 설정 객체가 필요합니다.');
  const v=input as Record<string,unknown>, raw=v.timing as Record<string,unknown>;
- requireValue(raw&&['manual','daily','weekly','monthly'].includes(String(raw.kind)),422,'INVALID_INPUT','실행 주기를 선택해 주세요.');
+ requireValue(raw&&['manual','three_hourly','daily','weekly','monthly'].includes(String(raw.kind)),422,'INVALID_INPUT','실행 주기를 선택해 주세요.');
  let timing:ResearchTiming={kind:'manual'};
  if(raw.kind!=='manual'){
   const time=textField(raw.time,'실행 시각',5),startDate=date(raw.startDate,'시작일'),endDate=date(raw.endDate??'','종료일',true);
   requireValue(/^([01]\d|2[0-3]):[0-5]\d$/.test(time)&&(!endDate||endDate>=startDate),422,'INVALID_INPUT','실행 시각과 시작·종료일을 확인해 주세요.');
-  timing={kind:raw.kind as 'daily'|'weekly'|'monthly',time,startDate,endDate};
+  timing={kind:raw.kind as Exclude<ResearchTiming,{kind:'manual'}>['kind'],time,startDate,endDate};
   if(raw.kind==='weekly'){requireValue(Number.isInteger(raw.weekday)&&Number(raw.weekday)>=0&&Number(raw.weekday)<=6,422,'INVALID_INPUT','요일을 선택해 주세요.');timing.weekday=Number(raw.weekday)}
   if(raw.kind==='monthly'){requireValue(Number.isInteger(raw.day)&&Number(raw.day)>=1&&Number(raw.day)<=31,422,'INVALID_INPUT','월별 날짜는 1~31일입니다.');timing.day=Number(raw.day)}
  }
@@ -49,6 +49,12 @@ export function nextOccurrence(timing:ResearchTiming,after:string):string|null {
  if(timing.kind==='manual')return null;
  const instant=Date.parse(after);requireValue(Number.isFinite(instant),422,'INVALID_INPUT','기준 시각을 확인해 주세요.');
  const [hour,minute]=timing.time.split(':').map(Number), time=(hour*60+minute)*60000;
+ if(timing.kind==='three_hourly'){
+  const anchor=Date.parse(timing.startDate)+time-offset,interval=3*3600000;
+  const candidate=anchor+Math.max(0,Math.floor((instant-anchor)/interval)+1)*interval;
+  if(timing.endDate&&new Date(candidate+offset).toISOString().slice(0,10)>timing.endDate)return null;
+  return new Date(candidate).toISOString();
+ }
  let local=new Date(Math.max(instant+offset,Date.parse(timing.startDate)));
  local=new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()));
  for(let i=0;i<370;i++){

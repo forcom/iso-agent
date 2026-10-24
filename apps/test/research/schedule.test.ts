@@ -17,6 +17,12 @@ describe('ERP research timing',()=>{
   [{kind:'daily',time:'00:00',startDate:'2026-02-01',endDate:'2026-02-01'},'2026-01-01T00:00:00.000Z','2026-01-31T15:00:00.000Z'],
   [{kind:'daily',time:'00:00',startDate:'2026-02-01',endDate:'2026-02-01'},'2026-01-31T15:00:00.000Z',null],
   [{kind:'manual'},'2026-01-01T00:00:00.000Z',null],
+  [{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:''},'2025-12-31T14:59:59.000Z','2025-12-31T15:00:00.000Z'],
+  [{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:''},'2025-12-31T15:00:00.000Z','2025-12-31T18:00:00.000Z'],
+  [{kind:'three_hourly',time:'09:30',startDate:'2026-01-01',endDate:''},'2026-01-01T14:31:00.000Z','2026-01-01T15:30:00.000Z'],
+  [{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:''},'2030-01-01T02:30:00.000Z','2030-01-01T03:00:00.000Z'],
+  [{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:'2026-01-01'},'2026-01-01T11:59:59.000Z','2026-01-01T12:00:00.000Z'],
+  [{kind:'three_hourly',time:'00:00',startDate:'2026-01-01',endDate:'2026-01-01'},'2026-01-01T12:00:00.000Z',null],
  ] as const)('calculates the next slot without repeating the current one (%j)',(timing,after,want)=>{
   expect(nextOccurrence(timing,after)).toBe(want);
  });
@@ -30,5 +36,10 @@ describe('ERP research timing',()=>{
   const value=parseResearchDefinition({...definition,title:'  조사  ',recordTypeIds:['test-F01','test-F01']});
   expect(value.title).toBe('조사');expect(value.recordTypeIds).toEqual(['test-F01']);
   expect(()=>parseResearchDefinition({...definition,keywords:Array(101).fill('x')})).toThrow();
+ });
+ it('accepts a three-hour schedule and rejects an invalid anchor',()=>{
+  const timing={kind:'three_hourly',time:'06:15',startDate:'2026-01-01',endDate:''};
+  expect(parseResearchDefinition({...definition,timing}).timing).toEqual(timing);
+  expect(()=>parseResearchDefinition({...definition,timing:{...timing,time:'24:00'}})).toThrow();
  });
 });

@@ -1,7 +1,7 @@
 import type {KnowledgeContext, EvidenceRef} from '../../../packages/contracts/src/index';
 
 export type ResearchTiming = {kind:'manual'} | {
- kind:'daily'|'weekly'|'monthly'; time:string; startDate:string; endDate:string; weekday?:number; day?:number;
+ kind:'three_hourly'|'daily'|'weekly'|'monthly'; time:string; startDate:string; endDate:string; weekday?:number; day?:number;
 };
 export interface ResearchDefinition {
  title:string; purpose:string; instruction:string; targets:string; jurisdiction:string;

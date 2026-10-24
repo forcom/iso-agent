@@ -19,7 +19,7 @@ export async function startConsent(t:TestEnvironment){
  const params=new URLSearchParams({client_id,redirect_uri:redirect,response_type:'code',scope:'research:execute offline_access',resource:origin+'/mcp',state:'synthetic-state',code_challenge:challenge,code_challenge_method:'S256'});
  const page=await fetchDots(t,'/oauth/authorize?'+params);const html=await page.text(),handle=html.match(/name="handle" value="([^"]+)"/)?.[1];
  if(!handle)throw new Error(`Consent page missing handle (${page.status})`);
- return {handle,cookie:page.headers.getSetCookie().map(c=>c.split(';')[0]).join('; '),client_id,redirect,verifier};
+ return {handle,cookie:page.headers.getSetCookie().map(c=>c.split(';')[0]).join('; '),client_id,redirect,verifier,authorizePath:'/oauth/authorize?'+params};
 }
 export async function grantDots(t:TestEnvironment){
  const c=await startConsent(t),response=await fetchDots(t,'/oauth/authorize',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Origin:origin,Cookie:c.cookie},body:new URLSearchParams({handle:c.handle,decision:'approve',pairing_code:pairing})});

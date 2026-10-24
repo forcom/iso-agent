@@ -19,7 +19,8 @@ async function authorize(request:Request,env:OAuthEnv){
   requireValue(allowedRedirect(auth.redirectUri)&&auth.scope.every(s=>[researchScope,'offline_access'].includes(s)),400,'INVALID_CLIENT','허용된 Dots 연결 요청이 아닙니다.');
   const details=await oauth.describeConsent(auth),consent=await oauth.beginConsent(auth),company=await connection(env);
   const recovery=company.state==='held'?'<p>연결이 보류되어 있습니다. 기존 Dots 조사가 종료되었는지 확인한 뒤 재연결하세요.</p><label><input type="checkbox" name="external_stopped" value="yes" required>기존 Dots 실행이 모두 종료되었음을 확인했습니다. 이전 실행권을 닫고 재연결합니다.</label>':'';
-  consent.headers.set('Content-Type','text/html; charset=utf-8');consent.headers.set('Referrer-Policy','no-referrer');
+  // no-referrer makes browsers send Origin:null on form POSTs; retain the origin without leaking OAuth query parameters.
+  consent.headers.set('Content-Type','text/html; charset=utf-8');consent.headers.set('Referrer-Policy','strict-origin');
   return new Response(`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>회사 Dots 연결</title><body><main><h1>회사 Dots 연결 승인</h1><p>${escape(details.clientName)} → ${escape(details.redirectHost)}</p><p>허용: 조사 작업 조회·진행 보고·결과 제출. 공식 기록 승인 권한은 부여하지 않습니다.</p><p>ERP 로그인은 필요하지 않습니다. 서버 운영자가 준비한 연결 코드를 입력하세요.</p><form method="post"><input type="hidden" name="handle" value="${escape(consent.handle)}"><label>연결 코드 <input type="password" name="pairing_code" autocomplete="off" maxlength="512" required></label>${recovery}<button name="decision" value="approve">연결 승인</button><button name="decision" value="deny" formnovalidate>취소</button></form></main></body></html>`,{headers:consent.headers});
  }
  requireValue(request.method==='POST',405,'METHOD_NOT_ALLOWED','허용되지 않은 요청입니다.');

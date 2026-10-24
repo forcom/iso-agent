@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 APP_NAME = "iso-agent"
-LLM_MODEL = "gpt-4.1-mini"
+LLM_MODEL = "gpt-5.4"
 ENGINE_URL = "http://127.0.0.1:8788"
 ALLOW_FICTIONAL_PERSONNEL = "true"
 

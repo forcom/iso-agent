@@ -24,5 +24,7 @@ recordRoutes.get('/records/:id/actions',async c=>{
  }const bundle=await getBundle(c.env,context);const conditions:any[]=typeConditions(bundle,artifact.recordTypeIds).map(condition=>({...condition,value:revision.conditions[condition.field]??null}));
  const requesterRule=bundle.policies.find(p=>artifact.recordTypeIds.includes(p.resourceTypeId)&&p.separationCondition==='not_requester');if(requesterRule)conditions.push({field:'requesterPersonId',kind:'person',reason:'자원 접근 신청자와 승인자 분리',value:revision.requesterPersonId??null,evidenceRefs:requesterRule.evidenceRefs});
  for(const [field,separation,reason] of [['implementerIds','not_implementer','조치 수행자와 효과성 검증자의 독립성'],['auditedPersonIds','independent_auditor','피심사자와 내부심사원의 독립성']] as const){const policy=bundle.policies.find(p=>artifact.recordTypeIds.includes(p.resourceTypeId)&&p.separationCondition===separation);if(policy)conditions.push({field,kind:'people',reason,value:revision[field]??null,evidenceRefs:policy.evidenceRefs})}
- return c.json({actions,context,revisionId:revision.id,revisionVersion:await revisionVersion(revision),state:revision.state,conditions});
+ const types=bundle.recordTypes.filter(type=>artifact.recordTypeIds.includes(type.id));
+ const recordApproval=types.length===artifact.recordTypeIds.length&&types.every(type=>type.recordApproval)?{label:[...new Set(types.map(type=>type.recordApproval!.label))].join(' · '),limitations:[...new Set(types.map(type=>type.recordApproval!.limitations))].join(' ')}:undefined;
+ return c.json({actions,context,revisionId:revision.id,revisionVersion:await revisionVersion(revision),state:revision.state,conditions,approvalScope:revision.approvalScope??'outcome',recordApproval});
 });

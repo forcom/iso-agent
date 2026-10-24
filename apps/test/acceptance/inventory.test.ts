@@ -1,8 +1,15 @@
 import {expect,it} from 'vitest';
-import {hash,metadata,requestKey,targetUrl,validateSources,validateActors,type Inventory,type InventoryRow} from './inventory';
+import {assertInventory,hash,metadata,requestKey,targetUrl,validateSources,validateActors,type Inventory,type InventoryRow} from './inventory';
 
 const bytes=Buffer.from('---\ninformation_id: SYN-001\nform_id: SYN-F01\ntemplate_version: "1.0"\nstatus: 승인\n---\n# Synthetic\n');
 const row={sourcePath:'docs/records/synthetic.md',sourceSha256:'',informationId:'SYN-001',formId:'SYN-F01',templateVersion:'1.0'} as InventoryRow;
+it('requires a declared record approval scope before a prepared plan can use it',()=>{
+ const source={...row,recordTypeId:'type',templateRevisionId:'template',draftOnly:false,approvalScope:'record',actors:{author:'author',submitter:'author',reviewers:['reviewer'],approvers:['approver'],circulator:'author',recipients:['reader']},confirmations:[],issues:[]};
+ const type:any={id:'type',code:'SYN-F01',templateRevisionId:'template',reviewRequired:true,approvalRequired:true};
+ const plan={schemaVersion:1,target:'local',baseUrl:'http://127.0.0.1:5173',rows:[source],recordTypes:[type]} as unknown as Inventory;
+ expect(()=>assertInventory(plan,1)).toThrow(/not defined/);type.recordApproval={label:'Record approval',limitations:'No outcome approval'};expect(()=>assertInventory(plan,1)).not.toThrow();
+ source.approvalScope='invented';expect(()=>assertInventory(plan,1)).toThrow(/Invalid approval scope/);
+});
 it('rejects an unintended target or unsafe run directory',()=>{
  expect(targetUrl('local')).toBe('http://127.0.0.1:5173');
  expect(targetUrl('remote')).toBe('https://iso-agent-demo.your-e37.workers.dev');

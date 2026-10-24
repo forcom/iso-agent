@@ -5,9 +5,8 @@ import {all,get,getBundle,getKnowledgeContext,assertContext,assertExpectedContex
 import {requireAuthorization} from './engine';
 import {parseMarkdown,sha256} from './markdown';
 import {ApiError,requireValue,stringList,textField} from './errors';
-import {canonical} from '../../../packages/knowledge/src/index';
 export function resourceFor(artifact:Artifact,revision:Revision) {
- return {id:artifact.id,typeIds:artifact.kind==='record'?artifact.recordTypeIds:[artifact.regulationType!],revisionId:revision.id,currentRevisionId:artifact.workingRevisionId,state:revision.state,systemIds:revision.systemIds,authorPersonId:revision.createdBy,reviewerPersonIds:revision.reviewedBy??[],requesterPersonId:revision.requesterPersonId,implementerIds:revision.implementerIds,auditedPersonIds:revision.auditedPersonIds,conditions:revision.conditions};
+ return {id:artifact.id,typeIds:artifact.kind==='record'?artifact.recordTypeIds:[artifact.regulationType!],revisionId:revision.id,currentRevisionId:artifact.workingRevisionId,state:revision.state,systemIds:revision.systemIds,documentCode:artifact.documentCode,filename:revision.filename,sourceSha256:revision.sourceSha256,authorPersonId:revision.createdBy,reviewerPersonIds:revision.reviewedBy??[],requesterPersonId:revision.requesterPersonId,implementerIds:revision.implementerIds,auditedPersonIds:revision.auditedPersonIds,conditions:revision.conditions,approvalScope:revision.approvalScope};
 }
 export async function readRevision(env:Env,id:string) {
  const {bytes: _bytes,...content}=await readRevisionFile(env,id);
@@ -46,9 +45,11 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
   requireValue(artifact.workingRevisionId===expectedRevisionId,409,'REVISION_CONFLICT','작업 버전이 변경되었습니다.');
  }else requireValue(!(await env.DB.prepare('SELECT id FROM artifacts WHERE document_code=?').bind(code).first()),422,'DUPLICATE_CODE','문서번호가 이미 등록되어 있습니다. 새 버전 등록을 사용해 주세요.');
  const previous=artifact?await get<Revision>(env,'revisions',artifact.workingRevisionId):undefined;
- const authorization=await requireAuthorization(env,actor,artifact?'revise':'create',artifact&&previous?resourceFor(artifact,previous):{typeIds:types,state:'new',systemIds:input.scope?[input.scope]:[],conditions:{}},context);
  const nextSystemIds=input.scope?[input.scope]:[];
- if(artifact&&previous&&canonical(nextSystemIds)!==canonical(previous.systemIds))await requireAuthorization(env,actor,'revise',{...resourceFor(artifact,previous),systemIds:nextSystemIds},context);
+ const incomingSource={documentCode:code,filename:input.filename,sourceSha256:parsed.sha256,systemIds:nextSystemIds};
+ const authorization=await requireAuthorization(env,actor,artifact?'revise':'create',artifact&&previous?resourceFor(artifact,previous):{typeIds:types,state:'new',...incomingSource,conditions:{}},context);
+ // Existing authority never authorizes a different file or system by inference.
+ if(artifact&&previous)await requireAuthorization(env,actor,'revise',{...resourceFor(artifact,previous),...incomingSource},context);
  const id=artifact?.id??crypto.randomUUID(),revisionId=crypto.randomUUID(),at=new Date().toISOString();
  const state=recordTypes.some(t=>t!.approvalRequired||t!.reviewRequired||t!.approvalCondition||t!.reviewCondition||t!.applicabilityCondition)?'draft':'registered';
  const objectKey=`sources/${revisionId}/${parsed.sha256}.md`,textKey=`text/${revisionId}/${parsed.textSha256}.txt`;
@@ -84,9 +85,48 @@ async function citingRevisions(env:Env,code:string,artifactId:string,releaseId:R
  }
  return found;
 }
-/** A code counts only as a whole token, so AIDU-AIP-01 is not found inside AIDU-AIP-01-F02. */
+/** Match a known code, including explicit numeric/form lists with a shared prefix/suffix.
+ * Each expression is bounded to 20 equal-width members; prose never supplies a prefix. */
 export function mentionsCode(line:string,code:string) {
- return new RegExp(`(?<![A-Za-z0-9-])${code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![A-Za-z0-9-])`).test(line);
+ const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ // Preserve arbitrary literal document codes; only ASCII codes use shorthand parsing.
+ if(!/^[A-Za-z0-9-]+$/.test(code))return new RegExp(`(?<![A-Za-z0-9-])${escape(code)}(?![A-Za-z0-9-])`).test(line);
+ const contains=(expression:string,target:string,pattern:RegExp)=>{
+  const parse=(part:string)=>{const match=part.match(pattern);return match?{family:match[1],number:Number(match[2])}:null;};
+  const wanted=parse(target);if(!wanted)return false;
+  let count=0,found=false;
+  for(const part of expression.split('·')){
+   const ends=part.split('~');if(ends.length>2)return false;
+   const first=parse(ends[0]),last=parse(ends.at(-1)!);
+   if(!first||!last||first.family!==last.family||last.number<first.number)return false;
+   // shortcut: bound shorthand expansion; support actual document lists above 20 only after reviewing their syntax and adding boundary tests.
+   count+=last.number-first.number+1;if(count>20)return false;
+   found ||= wanted.family===first.family&&wanted.number>=first.number&&wanted.number<=last.number;
+  }
+  return found;
+ };
+ const numeric=code.match(/^(.+-)(\d+)$/),form=code.match(/^(.+-)(F\d+)(-\d{4}-\d{3})?$/),section=code.match(/^(.+-)(\d{2}-\d{2})$/);
+ return (line.match(/[A-Za-z0-9·~～-]+/g)??[]).some(raw=>{
+  const token=raw.replaceAll('～','~');if(token===code)return true;
+  if(!/[·~]/.test(token))return false;
+  // Repeated full prefixes remain literal references; F02-2031-007 is a shared
+  // form/year suffix, so it must not turn the preceding F01 into a form reference.
+  const literals=token.split('·');
+  if(literals.every(part=>/^[A-Za-z][A-Za-z0-9]*-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(part)&&!/^F\d+-\d{4}-\d{3}$/.test(part))&&literals.includes(code))return true;
+  if(numeric){
+   const match=token.match(new RegExp(`^${escape(numeric[1])}(\\d+(?:[·~]\\d+)+)$`));
+   if(match&&contains(match[1],numeric[2],new RegExp(`^()(\\d{${numeric[2].length}})$`)))return true;
+  }
+  if(form){
+   const match=token.match(new RegExp(`^${escape(form[1])}(F\\d+(?:[·~]F\\d+)+)${escape(form[3]??'')}$`));
+   if(match&&contains(match[1],form[2],new RegExp(`^(F)(\\d{${form[2].length-1}})$`)))return true;
+  }
+  if(section){
+   const match=token.match(new RegExp(`^${escape(section[1])}(\\d{2}-\\d{2}(?:[·~]\\d{2}-\\d{2})+)$`));
+   if(match&&contains(match[1],section[2],/^(\d{2}-)(\d{2})$/))return true;
+  }
+  return false;
+ });
 }
 /** Objects keyed by a fresh revision ID are deleted only when D1 confirms that revision was never
  * registered: a failed commit, or a replay that returned an earlier request's revision. */

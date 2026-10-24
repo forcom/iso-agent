@@ -17,14 +17,18 @@ export async function decideRevision(env:Env,actor:ActorContext,input:DecisionIn
  if(input.decision!=='submit')requireValue(!stale,409,'AUTHORITY_CONFLICT','검토 요청 이후 정책·역할이 바뀌었습니다. 다시 검토 요청해 주세요.');
  const bundle=await getBundle(env,context),types=bundle.recordTypes.filter(type=>artifact.recordTypeIds.includes(type.id));
  requireValue(types.length===artifact.recordTypeIds.length,422,'RECORD_TYPE_UNAVAILABLE','현재 규정에서 기록 유형을 확인할 수 없습니다.');
- const needed=requiredDecisions(types,revision.conditions,input.decision==='approve'||input.decision==='review');
- const authorization=await authorizeRecordAction(env,actor,artifact,revision,context,input.decision);
+ const approvalScope=input.approvalScope??revision.approvalScope??'outcome';
+ requireValue(['record','outcome'].includes(approvalScope),422,'INVALID_APPROVAL_SCOPE','승인 범위를 확인해 주세요.');
+ requireValue(approvalScope!=='record'||types.every(type=>type.recordApproval),422,'UNSUPPORTED_APPROVAL_SCOPE','이 기록 유형에는 문서·계획 승인이 정의되지 않았습니다.');
+ requireValue(input.decision==='submit'||approvalScope===(revision.approvalScope??'outcome'),409,'APPROVAL_SCOPE_CONFLICT','검토 요청한 승인 범위와 다릅니다. 범위를 바꾸려면 새 검토 요청이 필요합니다.');
+ const needed=requiredDecisions(types,revision.conditions,input.decision==='approve'||input.decision==='review',approvalScope);
+ const authorization=await authorizeRecordAction(env,actor,artifact,revision,context,input.decision,approvalScope);
  requireValue(authorization.allowed,403,'ACTION_DENIED',authorization.reason);await readRevision(env,revision.id);
  const next={...revision};const decisionId=crypto.randomUUID();
  if(input.decision==='submit'){
   const confirmedNoStages=!needed.review&&!needed.approval&&!needed.unconfirmed.length;
   requireValue(['draft','rejected'].includes(revision.state)||stale&&['in_review','reviewed'].includes(revision.state)||revision.state==='in_review'&&confirmedNoStages,409,'STATE_CONFLICT','현재 상태에서 검토를 요청할 수 없습니다.');
-  next.submissionId=crypto.randomUUID();next.submittedContext=context;next.reviewedBy=[];next.approvedBy=[];
+  next.submissionId=crypto.randomUUID();next.submittedContext=context;next.reviewedBy=[];next.approvedBy=[];next.approvalScope=approvalScope;
   next.state=!needed.review&&!needed.approval&&!needed.unconfirmed.length?'registered':'in_review';
  }else if(input.decision==='reject'){
   requireValue(['in_review','reviewed'].includes(revision.state),409,'STATE_CONFLICT','검토 중인 버전만 반려할 수 있습니다.');next.state='rejected';
@@ -49,9 +53,9 @@ export async function decideRevision(env:Env,actor:ActorContext,input:DecisionIn
    next.state=approvalComplete?'approved':revision.state;next.approvedBy=[...new Set([...(revision.approvedBy??[]),actor.personId])];
   }
  }
- const decision={id:decisionId,revisionId:revision.id,artifactId:artifact.id,submissionId:next.submissionId,recordTypeIds:authorization.recordTypeIds,decision:input.decision,comment:input.comment??'',actorId:actor.personId,at:new Date().toISOString(),sourceSha256:revision.sourceSha256,context,authorization};
- const statements=[update(env,'revisions',revision.id,next),env.DB.prepare('INSERT INTO decisions VALUES(?,?,?)').bind(decisionId,revision.id,JSON.stringify(decision)),event(env,artifact.id,{kind:input.decision,revisionId:revision.id,decisionId,submissionId:next.submissionId,recordTypeIds:authorization.recordTypeIds,actorId:actor.personId,context})];
+ const decision={id:decisionId,revisionId:revision.id,artifactId:artifact.id,submissionId:next.submissionId,recordTypeIds:authorization.recordTypeIds,decision:input.decision,approvalScope,comment:input.comment??'',actorId:actor.personId,at:new Date().toISOString(),sourceSha256:revision.sourceSha256,context,authorization};
+ const statements=[update(env,'revisions',revision.id,next),env.DB.prepare('INSERT INTO decisions VALUES(?,?,?)').bind(decisionId,revision.id,JSON.stringify(decision)),event(env,artifact.id,{kind:input.decision,revisionId:revision.id,decisionId,submissionId:next.submissionId,recordTypeIds:authorization.recordTypeIds,approvalScope,actorId:actor.personId,context})];
  if(['approved','registered'].includes(next.state))statements.push(update(env,'artifacts',artifact.id,{...artifact,effectiveRevisionId:revision.id}));
- const result={decisionId,revisionId:revision.id,status:next.state,recordTypeIds:authorization.recordTypeIds,submissionId:next.submissionId,context:{...context,dataRevision:context.dataRevision+1}};
+ const result={decisionId,revisionId:revision.id,status:next.state,recordTypeIds:authorization.recordTypeIds,submissionId:next.submissionId,approvalScope,context:{...context,dataRevision:context.dataRevision+1}};
  return commitMutation(env,actor,key,hash,context,result,statements);
 }

@@ -1,5 +1,5 @@
 import {requestHash} from './requests';
-import type {ActorContext,BuildSource,KnowledgeBundle,KnowledgeContext,ReviewedMappings,SourceRevision} from '../../../packages/contracts/src/index';
+import type {ActorContext,BuildSource,KnowledgeBundle,KnowledgeContext,RecordDesignationReference,ReviewedMappings,SourceRevision} from '../../../packages/contracts/src/index';
 import type {Artifact,Change,Env,Revision} from '../types';
 import {buildRelease,checkBundle,mergeExtraction,rebaseMappings,verifyBundle,canonical} from '../../../packages/knowledge/src/index';
 import {createProvider} from '../../../packages/llm/src/index';
@@ -8,6 +8,7 @@ import {authorize,requireAuthorization} from './engine';
 import {readRevision,resourceFor,withSourceCleanup} from './artifacts';
 import {parseMarkdown,sha256} from './markdown';
 import {ApiError,requireValue,textField} from './errors';
+import {getRecordDesignations} from './record-designations';
 export function requireAdmin(actor:ActorContext){requireValue(actor.isAdmin,403,'ADMIN_REQUIRED','관리자 지정이 필요합니다.');}
 const isOpen=(change:Change)=>change.state!=='published'&&change.state!=='cancelled';
 async function closeableChange(env:Env,actor:ActorContext,changeId:string,input:any,action:'revise'|'cancel'){
@@ -71,17 +72,40 @@ async function buildSources(env:Env,sources:SourceRevision[]):Promise<BuildSourc
   requireValue(await sha256(bytes)===meta.sha256,422,'SOURCE_CHANGED','원본 해시가 일치하지 않습니다.');return {...meta,bytes};
  }));
 }
-async function writeCandidate(env:Env,bundle:KnowledgeBundle){
+/** Business designations stay in release metadata, outside the immutable knowledge hash. */
+async function inheritedRecordDesignations(env:Env,context:KnowledgeContext):Promise<RecordDesignationReference>{
+ const metadata=await get<RecordDesignationReference>(env,'releases',context.releaseId);
+ if(metadata.recordDesignationKey===undefined&&metadata.recordDesignationSha256===undefined)return {};
+ requireValue(await getRecordDesignations(env,context),503,'RECORD_DESIGNATION_INVALID','기준 릴리스의 기록별 담당자 지정 원본을 확인할 수 없습니다.');
+ return {recordDesignationKey:metadata.recordDesignationKey,recordDesignationSha256:metadata.recordDesignationSha256};
+}
+function assertDesignationReference(metadata:RecordDesignationReference,expected:RecordDesignationReference){
+ requireValue(metadata.recordDesignationKey===expected.recordDesignationKey&&metadata.recordDesignationSha256===expected.recordDesignationSha256,409,'RECORD_DESIGNATION_CONFLICT','후보 릴리스의 기록별 담당자 지정이 현재 기준과 다릅니다.');
+}
+async function writeCandidate(env:Env,bundle:KnowledgeBundle,context:KnowledgeContext){
+ const designation=await inheritedRecordDesignations(env,context);
  const existing=await env.DB.prepare('SELECT body FROM releases WHERE id=?').bind(bundle.manifest.releaseId).first<{body:string}>();
  requireValue(!existing||JSON.parse(existing.body).manifestHash===bundle.manifest.manifestHash,409,'RELEASE_ID_CONFLICT','같은 릴리스 식별자에 다른 내용이 이미 등록되어 있습니다.');
+ if(existing)assertDesignationReference(JSON.parse(existing.body),designation);
  const key=`releases/${bundle.manifest.releaseId}/${bundle.manifest.manifestHash}.json`;await env.SOURCES.put(key,JSON.stringify(bundle));
- return env.DB.prepare('INSERT INTO releases(id,object_key,body) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING').bind(bundle.manifest.releaseId,key,JSON.stringify(bundle.manifest));
+ return env.DB.prepare('INSERT INTO releases(id,object_key,body) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING').bind(bundle.manifest.releaseId,key,JSON.stringify({...bundle.manifest,...designation}));
 }
-function diffItems<T extends object>(before:T[],after:T[],key:(item:T)=>string,ignoredKeys:string[]=[]){
+export function diffItems<T extends object>(before:T[],after:T[],key:(item:T)=>string,ignoredKeys:string[]=[],candidateReview?:'relation'|'wiki'){
  const index=(items:T[])=>{const counts=new Map<string,number>();return new Map(items.map(item=>{const id=key(item),occurrence=counts.get(id)??0;counts.set(id,occurrence+1);return [`${id}:${occurrence}`,item] as const}))};
  const old=index(before),next=index(after),added:T[]=[],removed:T[]=[],changed:{key:string;before:T;after:T}[]=[];
- const comparable=(item:T)=>canonical(Object.fromEntries(Object.entries(item).filter(([name])=>!ignoredKeys.includes(name))));
- for(const [id,item] of next){const previous=old.get(id);if(!previous)added.push(item);else if(comparable(previous)!==comparable(item))changed.push({key:id,before:previous,after:item})}
+ const comparable=(item:T,previous?:T)=>{
+  type Reviewed={reviewStatus?:string;claims?:Array<{id:string;reviewStatus?:string}>};
+  const value=Object.fromEntries(Object.entries(item)),prior=previous as Reviewed|undefined,current=item as Reviewed;
+  // Candidate compilation resets these states automatically. Normalize only that
+  // transition for comparison; original rows and all other review states survive.
+  if(candidateReview==='relation'&&prior?.reviewStatus==='validated'&&current.reviewStatus==='candidate')value.reviewStatus='validated';
+  if(candidateReview==='wiki'&&prior?.claims&&current.claims){
+   const priorClaims=new Map(prior.claims.map(claim=>[claim.id,claim.reviewStatus]));
+   value.claims=current.claims.map(claim=>priorClaims.get(claim.id)==='validated'&&claim.reviewStatus==='candidate'?{...claim,reviewStatus:'validated'}:claim);
+  }
+  return canonical(Object.fromEntries(Object.entries(value).filter(([name])=>!ignoredKeys.includes(name))));
+ };
+ for(const [id,item] of next){const previous=old.get(id);if(!previous)added.push(item);else if(comparable(previous)!==comparable(item,previous))changed.push({key:id,before:previous,after:item})}
  for(const [id,item] of old)if(!next.has(id))removed.push(item);
  return {beforeCount:before.length,afterCount:after.length,added,removed,changed,unchanged:before.length-removed.length-changed.length};
 }
@@ -171,15 +195,15 @@ export async function buildRegulationChange(env:Env,actor:ActorContext,changeId:
   sources:diffItems(base.sources,bundle.sources,item=>item.artifactId),
   requirements:diffItems(base.entities.filter(e=>e.type==='Requirement'),bundle.entities.filter(e=>e.type==='Requirement'),item=>item.id),
   entities:diffItems(base.entities,bundle.entities,item=>item.id),
-  // Generated relation IDs include the release ID. Compare their meaning and retain both complete rows for review.
-  relations:diffItems(base.relations,bundle.relations,item=>JSON.stringify([item.subjectId,item.type,item.objectId,item.origin]),['id','releaseId']),
+  // Compare definitions, excluding generated IDs and automatic candidate states.
+  relations:diffItems(base.relations,bundle.relations,item=>JSON.stringify([item.subjectId,item.type,item.objectId,item.origin]),['id','releaseId'],'relation'),
   policies:diffItems(base.policies,bundle.policies,item=>item.id,['effectiveReleaseId']),
-  wiki:diffItems(base.wiki,bundle.wiki,item=>item.id,['releaseId']),
+  wiki:diffItems(base.wiki,bundle.wiki,item=>item.id,['releaseId'],'wiki'),
   assignments:await all(env,'assignments'),issues:rebased.issues,extractionError,
-  comparisonNote:'릴리스 식별자만 바뀐 항목은 변경으로 세지 않습니다. 원문·인용·조건 등 실제 값의 차이와 이전·이후 전체 값을 보존합니다.',
+  comparisonNote:'릴리스 식별자와 후보 빌드의 자동 검토대기 전환(validated→candidate)은 내용 변경으로 세지 않습니다. 원문·인용·조건·그 밖의 검토 상태 차이와 변경 항목의 이전·이후 전체 값을 보존합니다.',
  };
  const next:Change={...change,state:'built',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation,diff:await storeLargeJson(env,diff,'regulation-diffs'),knowledgeValidation:undefined};
- const result={change:next,candidate:bundle,validation};return commitMutation(env,actor,key,hash,context,result,[await writeCandidate(env,bundle),update(env,'regulation_changes',changeId,next),event(env,null,{kind:'knowledge_candidate_built',changeId,actorId:actor.personId,candidateHash:next.candidateHash,context})]);
+ const result={change:next,candidate:bundle,validation};return commitMutation(env,actor,key,hash,context,result,[await writeCandidate(env,bundle,context),update(env,'regulation_changes',changeId,next),event(env,null,{kind:'knowledge_candidate_built',changeId,actorId:actor.personId,candidateHash:next.candidateHash,context})]);
 }
 export async function decideRegulationChange(env:Env,actor:ActorContext,changeId:string,input:any){
  const key=textField(input.requestKey,'requestKey',200),hash=await requestHash('regulation.decide',{...input,changeId});const prior=await replay(env,actor,key,hash);if(prior!==undefined)return prior;
@@ -190,7 +214,7 @@ export async function decideRegulationChange(env:Env,actor:ActorContext,changeId
   // Only reopened candidates are validated; untouched mappings keep their original reviewer and time.
   const mappings=structuredClone(bundle.mappings),at=new Date().toISOString();for(const s of mappings.sources)if(s.reviewStatus==='candidate'){s.reviewStatus='validated';s.reviewedBy=actor.personId;s.reviewedAt=at}for(const item of [...mappings.policies,...mappings.recordTypes,...(mappings.relations??[])])if(item.reviewStatus==='candidate')item.reviewStatus='validated';
   try{bundle=await buildRelease({sources:await buildSources(env,bundle.sources),mappings,...await definitions(env,bundle),schemaVersion:bundle.manifest.schemaVersion,sourceMode:bundle.sources.every(s=>s.path.startsWith('synthetic/'))?'synthetic':'production'})}catch(error){throw new ApiError(422,'KNOWLEDGE_VALIDATION_FAILED','미해결 매핑·인용이 있어 검증을 완료할 수 없습니다.',String(error))}
-  statements.push(await writeCandidate(env,bundle));next={...change,state:'validated',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation:checkBundle(bundle),knowledgeValidation:{personId:actor.personId,hash:bundle.manifest.manifestHash,at}};
+  statements.push(await writeCandidate(env,bundle,context));next={...change,state:'validated',candidateReleaseId:bundle.manifest.releaseId,candidateHash:bundle.manifest.manifestHash,validation:checkBundle(bundle),knowledgeValidation:{personId:actor.personId,hash:bundle.manifest.manifestHash,at}};
  }else{
   requireValue(['review','approve','reject'].includes(input.decision),422,'INVALID_DECISION','결정 종류를 확인해 주세요.');authorization=await changeAuthorization(env,actor,change,input.decision==='reject'?'review':input.decision,context);
   requireValue(change.knowledgeValidation?.hash===change.candidateHash,409,'KNOWLEDGE_REVIEW_REQUIRED','지식 검증을 먼저 완료해 주세요.');
@@ -208,6 +232,7 @@ export async function publishRegulationChange(env:Env,actor:ActorContext,changeI
  const context=await getKnowledgeContext(env);assertExpectedContext(input.expectedContext,context);const change=await get<Change>(env,'regulation_changes',changeId);
  requireValue(change.baseContext.releaseId===context.releaseId && change.state==='approved' && change.candidateHash===input.candidateHash,409,'PUBLICATION_CONFLICT','기존 릴리스·승인 후보를 다시 확인해 주세요.');
  const authorization=await changeAuthorization(env,actor,change,'publish',context);const bundle=await candidateBundle(env,change),validation=await verifyBundle(bundle);requireValue(validation.valid,422,'KNOWLEDGE_INVALID','후보 무결성 검증에 실패했습니다.');
+ assertDesignationReference(await get<RecordDesignationReference>(env,'releases',bundle.manifest.releaseId),await inheritedRecordDesignations(env,context));
  requireValue(change.knowledgeValidation?.hash===bundle.manifest.manifestHash,409,'KNOWLEDGE_REVIEW_REQUIRED','지식 검증 대상이 다릅니다.');
  const approved=(await all<any>(env,'decisions')).some(d=>d.changeId===changeId&&d.decision==='approve'&&d.candidateHash===change.candidateHash&&d.context.releaseId===context.releaseId&&d.context.authorityRevision===context.authorityRevision);
  requireValue(approved,409,'AUTHORITY_CONFLICT','승인 이후 권한이 변경되었거나 승인 근거가 없습니다.');

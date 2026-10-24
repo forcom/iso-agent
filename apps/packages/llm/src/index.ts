@@ -10,7 +10,7 @@ export interface LlmProvider {
 export class OpenAiProvider implements LlmProvider {
   constructor(
     private apiKey: string,
-    private defaultModel = "gpt-4.1-mini",
+    private defaultModel = "gpt-5.4",
   ) {}
 
   async complete(
@@ -20,6 +20,7 @@ export class OpenAiProvider implements LlmProvider {
     if (!this.apiKey) {
       throw new Error("OPENAI_API_KEY is not configured");
     }
+    const model = opts?.model ?? this.defaultModel;
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -27,8 +28,10 @@ export class OpenAiProvider implements LlmProvider {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: opts?.model ?? this.defaultModel,
-        temperature: opts?.temperature ?? 0.2,
+        model,
+        ...(model === "gpt-5.4"
+          ? { reasoning_effort: "low" }
+          : { temperature: opts?.temperature ?? 0.2 }),
         messages,
       }),
       signal: AbortSignal.timeout(60000),

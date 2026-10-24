@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 APP_NAME = "iso-agent"
-LLM_MODEL = "gpt-4.1-mini"
+LLM_MODEL = "gpt-5.4"
 ALLOW_FICTIONAL_PERSONNEL = "true"
 
 [assets]

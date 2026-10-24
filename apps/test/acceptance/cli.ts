@@ -87,7 +87,7 @@ export async function main(args=process.argv.slice(2)) {
   await lock.writeFile(String(process.pid));
   if(values.screens){
    const code=values['sample-code'];assert.ok(code,'Screen run requires --sample-code <information_id>');
-   const row=plan.rows.find(row=>row.informationId===code);assert.ok(row&&!row.draftOnly&&!row.confirmations.length&&row.actors.approvers.length,'Choose an unconditional approval-required screen sample');
+   const row=plan.rows.find(row=>row.informationId===code);assert.ok(row&&!row.draftOnly&&(row.approvalScope??'outcome')==='outcome'&&row.actors.approvers.length,'Choose an outcome approval-required screen sample with source-backed confirmations');
    const exit=await new Promise<number|null>(done=>{const child=spawn('pnpm',['--filter','@iso-agent/test','exec','playwright','test','--config','acceptance/playwright.config.ts'],{cwd:repoRoot,stdio:'inherit',env:{...process.env,ACCEPTANCE_PLAN:planPath,ACCEPTANCE_RUN_ID:runId,ACCEPTANCE_TARGET:target,ACCEPTANCE_BASE_URL:baseUrl,ACCEPTANCE_SAMPLE_CODE:code,ACCEPTANCE_SCREEN_AUTHORIZED:hash(raw)}});child.on('error',()=>done(1));child.on('exit',done)});assert.equal(exit,0,'Acceptance screen sample failed');return;
   }
   const checkpointPath=resolve(directory,'checkpoint.json');let checkpoint:Checkpoint;

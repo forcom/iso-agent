@@ -31,6 +31,64 @@ it('runs the public upload/submit/review/approve/circulate/receipt flow and resu
  expect(logs.map(row=>row.operation)).toEqual(expect.arrayContaining(['upload','submit','review:reviewer','approve:approver','circulate','receipt:reader:received','receipt:reader:understood']));
  expect(logs.every(row=>row.sourcePath&&row.sourceSha256&&row.informationId&&row.formId&&row.recordTypeId&&row.templateVersion&&row.templateRevisionId&&row.actors&&'targetSystemId' in row&&'appState' in row&&'error' in row&&'verification' in row&&row.context)).toBe(true);
 });
+it('reuses verified completed circulation and receipts across a new run and authority context without new business writes',async()=>{
+ const {options,logs}=await setup();await runRecords(options);
+ const before=await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first();
+ const original=(await env.bindings.DB.prepare('SELECT body FROM circulations').all<{body:string}>()).results.map(row=>JSON.parse(row.body))[0];
+ await env.bindings.DB.prepare('UPDATE context SET authority_revision=1').run();
+ options.plan.context.authorityRevision=1;options.runId='synthetic-resume';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};
+ await runRecords(options);
+ expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
+ expect(options.checkpoint.records['SYN-001']).toMatchObject({appState:'approved',verification:'passed',disposition:'existing'});
+ expect(logs).toEqual(expect.arrayContaining([expect.objectContaining({operation:'reuse-circulation',circulationId:original.id,circulationContext:original.context})]));
+ expect(Object.keys(options.checkpoint.operations)).toHaveLength(0);
+});
+it('resubmits only a stale pending revision and preserves the old review round in history',async()=>{
+ const {options}=await setup();const real=options.http;
+ options.http=async(path,settings)=>{if(path.endsWith('/decisions')&&(settings?.json as any)?.decision==='approve')throw new Error('synthetic stop before approval');return real(path,settings) as any};
+ await expect(runRecords(options)).rejects.toThrow('synthetic stop before approval');
+ const oldDecisions=(await env.bindings.DB.prepare('SELECT id, body FROM decisions').all<{id:string;body:string}>()).results;
+ expect(oldDecisions).toHaveLength(2);
+ await env.bindings.DB.prepare('UPDATE context SET authority_revision=1').run();
+ options.plan.context.authorityRevision=1;options.runId='synthetic-resume';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};options.http=real;
+ await runRecords(options);
+ const decisions=(await env.bindings.DB.prepare('SELECT id, body FROM decisions').all<{id:string;body:string}>()).results;
+ for(const old of oldDecisions)expect(decisions.find(row=>row.id===old.id)).toEqual(old);
+ expect(decisions.map(row=>JSON.parse(row.body).decision).sort()).toEqual(['approve','review','review','submit','submit']);
+ const submissions=decisions.map(row=>JSON.parse(row.body)).filter(row=>row.decision==='submit');
+ expect(submissions[0].submissionId).not.toEqual(submissions[1].submissionId);
+ expect(options.checkpoint.records['SYN-001'].verification).toBe('passed');
+});
+it('resumes a partial prior circulation with only its missing receipt',async()=>{
+ const {options,logs}=await setup();const real=options.http;
+ options.http=async(path,settings)=>{if(path.endsWith('/receipts')&&(settings?.json as any)?.kind==='understood')throw new Error('synthetic stop before understanding');return real(path,settings) as any};
+ await expect(runRecords(options)).rejects.toThrow('synthetic stop before understanding');
+ const before=(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first<{n:number}>())!.n;
+ options.runId='synthetic-resume';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};options.http=real;
+ await runRecords(options);
+ expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first<{n:number}>())!.n).toBe(before+1);
+ expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM circulations').first<{n:number}>())!.n).toBe(1);
+ expect(logs.at(-2)).toMatchObject({operation:'reuse-circulation'});
+ expect(Object.values(options.checkpoint.operations).map(row=>row.payload.kind)).toEqual(['understood']);
+});
+it('rejects mismatched prior receipt evidence instead of treating a new run as completed',async()=>{
+ const {options}=await setup();await runRecords(options);const real=options.http;
+ const before=await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first();
+ options.runId='synthetic-resume';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};
+ options.http=async(path,settings)=>{const response=await real(path,settings);if(path==='/api/circulations?all=true')response.body.items[0].receipts[0].revisionId='different-revision';return response as any};
+ await expect(runRecords(options)).rejects.toThrow('mismatched receipt evidence');
+ expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
+ expect(options.checkpoint.records['SYN-001'].verification).toBe('failed');
+});
+it('does not reuse an old registered record when the current plan requires approval',async()=>{
+ const bundle=await syntheticBundle();bundle.recordTypes.find(type=>type.id==='test-F01')!.approvalRequired=false;
+ const {options}=await setup(undefined,bundle);options.plan.rows[0].actors.approvers=[];await runRecords(options);
+ expect(options.checkpoint.records['SYN-001'].appState).toBe('registered');
+ const before=await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first();options.plan.recordTypes.find(type=>type.id==='test-F01')!.approvalRequired=true;options.plan.rows[0].actors.approvers=['approver'];
+ options.runId='synthetic-new-approval-contract';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};
+ await expect(runRecords(options)).rejects.toThrow(/registered revision now requires approval/);
+ expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
+});
 it('leaves the designated in-progress record draft even if source says approved',async()=>{
  const {options,logs}=await setup(DRAFT_ONLY);await runRecords(options);
  expect(options.checkpoint.records[DRAFT_ONLY]).toMatchObject({appState:'draft',verification:'passed'});
@@ -72,6 +130,22 @@ it('verifies source-supported approval denial without approval, circulation or d
  expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
  expect((await env.bindings.DB.prepare('SELECT body FROM decisions').all<{body:string}>()).results.map(r=>JSON.parse(r.body)).some(r=>r.decision==='approve')).toBe(false);
  expect((await env.bindings.DB.prepare('SELECT count(*) AS n FROM circulations').first<{n:number}>())?.n).toBe(0);
+});
+it('keeps unfinished controls false while explicitly approving and circulating only the record scope',async()=>{
+ const bundle=await syntheticBundle(),policy=bundle.policies.find(policy=>policy.resourceTypeId==='test-F01'&&policy.action==='approve')!;
+ policy.conditions=[{field:'requiredControlsVerified',equals:true,reason:'Synthetic outcome requires completed controls',evidenceRefs:policy.evidenceRefs}];
+ const recordPolicy={...structuredClone(policy),id:'test-F01-record-approve',approvalScope:'record' as const,conditions:[]};bundle.policies.push(recordPolicy);
+ const type=bundle.recordTypes.find(type=>type.id==='test-F01')!;type.recordApproval={label:'Synthetic record approval',limitations:'Does not approve execution or control completion'};
+ const {options,logs}=await setup(undefined,bundle);options.plan.rows[0].approvalScope='record';
+ options.plan.rows[0].confirmations=[{field:'requiredControlsVerified',value:false,lineStart:7,lineEnd:7,quote:'# Synthetic acceptance',comment:'Synthetic pending-control case',personId:'reviewer'}];
+ await runRecords(options);
+ expect(options.checkpoint.records['SYN-001']).toMatchObject({appState:'approved',verification:'passed',expectedOutcome:'record-approved'});
+ expect(logs).toEqual(expect.arrayContaining([expect.objectContaining({operation:'outcome-scope-denied:approver',status:409,error:'APPROVAL_SCOPE_CONFLICT'})]));
+ const revision=JSON.parse((await env.bindings.DB.prepare('SELECT body FROM revisions WHERE id=?').bind(options.checkpoint.records['SYN-001'].revisionId).first<{body:string}>())!.body);
+ expect(revision).toMatchObject({approvalScope:'record',conditions:{requiredControlsVerified:false}});
+ const approvals=(await env.bindings.DB.prepare('SELECT body FROM decisions').all<{body:string}>()).results.map(row=>JSON.parse(row.body)).filter(row=>row.decision==='approve');expect(approvals).toHaveLength(1);expect(approvals[0].approvalScope).toBe('record');
+ const before=await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first();options.runId='synthetic-record-resume';options.checkpoint={planSha256:hash(JSON.stringify(options.plan)),operations:{},records:{}};
+ await runRecords(options);expect(await env.bindings.DB.prepare('SELECT count(*) AS n FROM events').first()).toEqual(before);
 });
 it('fails when the ERP approves a pending-control case instead of silently accepting the unexpected approval',async()=>{
  const bundle=await syntheticBundle();

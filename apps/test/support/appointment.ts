@@ -2,11 +2,14 @@ import type {TestEnvironment} from './environment';
 import {parseMarkdown} from '../../worker/src/lib/markdown';
 import type {Artifact,Revision} from '../../worker/src/types';
 import {canonical,sha256} from '../../packages/knowledge/src/index';
-export async function installAppointment(env:TestEnvironment,markdown:string) {
+export async function installAppointment(env:TestEnvironment,markdown:string,applicationRole?:string) {
  env.bundle.recordTypes.find(type=>type.id==='test-F01')!.roleAssignment = true;
  const policy=env.bundle.policies.find(p=>p.resourceTypeId==='test-F01'&&p.action==='apply_assignment')!;
- Object.assign(policy,{roleId:'administrator',origin:'product_policy',productPolicyId:'synthetic-admin-application',adminRequired:true,evidenceRefs:[],stateCondition:['approved']});
- env.bundle.productPolicies.push({id:'synthetic-admin-application',title:'Synthetic application',origin:'product_policy',sourceUrl:'https://example.invalid/synthetic',decision:'Synthetic administrator application of already approved appointment',conflicts:[]});
+ if(applicationRole)Object.assign(policy,{roleId:applicationRole,adminRequired:false,stateCondition:['approved']});
+ else{
+  Object.assign(policy,{roleId:'administrator',origin:'product_policy',productPolicyId:'synthetic-admin-application',adminRequired:true,evidenceRefs:[],stateCondition:['approved']});
+  env.bundle.productPolicies.push({id:'synthetic-admin-application',title:'Synthetic application',origin:'product_policy',sourceUrl:'https://example.invalid/synthetic',decision:'Synthetic administrator application of already approved appointment',conflicts:[]});
+ }
  env.bundle.manifest.manifestHash='';env.bundle.manifest.manifestHash=await sha256(canonical(env.bundle));
  await env.bindings.SOURCES.put('releases/test-release.json',JSON.stringify(env.bundle));
  await env.bindings.DB.prepare('UPDATE releases SET body=? WHERE id=?').bind(JSON.stringify(env.bundle.manifest),env.bundle.manifest.releaseId).run();

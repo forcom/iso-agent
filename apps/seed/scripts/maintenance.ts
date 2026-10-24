@@ -46,6 +46,12 @@ export async function verifySnapshot(snapshot:MaintenanceSnapshot){
 }
 function references(value:unknown):any[]{if(!value||typeof value!=='object')return [];if(Array.isArray(value))return value.flatMap(references);return Object.entries(value).flatMap(([key,item])=>key==='evidenceRefs'&&Array.isArray(item)?item:references(item))}
 function jsonPointer(value:any,prefix:string):{key:string;sha256:string}|undefined {if(!value?.__r2Json)return;const pointer=value.__r2Json;check(typeof pointer.sha256==='string'&&/^[a-f0-9]{64}$/.test(pointer.sha256)&&pointer.key===`${prefix}/${pointer.sha256}.json`,'Invalid stored JSON object pointer');return pointer}
+function recordDesignationPointer(value:any):{key:string;sha256:string}|undefined {
+ if(value.recordDesignationKey===undefined&&value.recordDesignationSha256===undefined)return;
+ const hash=value.recordDesignationSha256,key=value.recordDesignationKey;
+ check(typeof hash==='string'&&/^[a-f0-9]{64}$/.test(hash)&&key===`record-designations/${hash}.json`,'Invalid business record designation pointer');
+ return {key,sha256:hash};
+}
 async function preservation(current:MaintenanceSnapshot,baseline:MaintenanceSnapshot){
  const artifacts=new Map(current.tables.artifacts.map(row=>[String(row.id),row])),revisions=new Map(current.tables.revisions.map(row=>[String(row.id),row])),objects=new Map(current.objects.map(object=>[object.key,object]));
  const keepArtifacts=new Set<string>(),keepRevisions=new Set<string>(),keepObjects=new Map<string,string>(),sourceRevisions=new Map<string,{sha256:string;markdown:string}>();
@@ -54,6 +60,7 @@ async function preservation(current:MaintenanceSnapshot,baseline:MaintenanceSnap
  for(const row of current.tables.releases){
   const object=objects.get(String(row.object_key));check(object,`Release object missing: ${row.id}`);const bundle=JSON.parse(Buffer.from(object.bytes,'base64').toString('utf8')) as KnowledgeBundle,manifest=body(row),copy=structuredClone(bundle);copy.manifest.manifestHash='';
   check(bundle.manifest.releaseId===row.id&&manifest.manifestHash===bundle.manifest.manifestHash&&await digest(copy)===manifest.manifestHash,`Release hash changed: ${row.id}`);keepObjects.set(object.key,object.sha256);
+  const designation=recordDesignationPointer(manifest);if(designation)keepObject(designation.key,designation.sha256);
   keepObject(`definitions/rules/${bundle.manifest.rulesHash}`,bundle.manifest.rulesHash);keepObject(`definitions/schema/${bundle.manifest.schemaHash}`,bundle.manifest.schemaHash);
   for(const source of bundle.sources){keepObject(`sources/${source.revisionId}/${source.sha256}.md`,source.sha256);sourceRevisions.set(source.revisionId,{sha256:source.sha256,markdown:source.markdown});if(source.kind!=='index'){check(revisions.has(source.revisionId),`Release source revision missing: ${source.revisionId}`);keepArtifacts.add(source.artifactId)}}
  }
@@ -100,6 +107,10 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
  check(!current.tables.regulation_changes.some(row=>!['published','cancelled'].includes(body(row).state)&&!baselineChanges.has(canonical(row))),'Open regulation changes made after the baseline; cancel or publish them before maintenance');
  const restored=restoredRegulations(current,baseline);replaceRows.artifacts=restored.artifacts;replaceRows.revisions=restored.revisions;
  if(operation==='reset-business'){
+  // Record-specific actors are business data, unlike staff/role provenance.
+  // Only these two optional release metadata fields may be removed by reset;
+  // the release object key, knowledge manifest and original bundle stay intact.
+  for(const row of current.tables.releases){const manifest=body(row);if(recordDesignationPointer(manifest)){const {recordDesignationKey:_key,recordDesignationSha256:_hash,...knowledgeManifest}=manifest;replaceRows.releases.push({...row,body:JSON.stringify(knowledgeManifest)})}}
   deleteRows.artifacts=current.tables.artifacts.filter(row=>!keep.keepArtifacts.has(String(row.id))).map(row=>String(row.id));deleteRows.revisions=current.tables.revisions.filter(row=>!keep.keepRevisions.has(String(row.id))).map(row=>String(row.id));
   const removed=new Set([...deleteRows.artifacts,...deleteRows.revisions]);
   deleteRows.relations=current.tables.relations.filter(row=>{const relation=body(row);return removed.has(relation.subjectId)||removed.has(relation.objectId)||references(relation).some(ref=>removed.has(ref.revisionId))}).map(row=>String(row.id));
@@ -118,7 +129,10 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
  for(const table of tables)if(table!=='assignments'){const existing=new Map(current.tables[table].map(row=>[String(row.id),canonical(row)]));replaceRows[table]=replaceRows[table].filter(row=>existing.get(String(row.id))!==canonical(row))}
  const context=current.tables.context[0];replaceRows.context=[{...context,release_id:baseline.tables.context[0].release_id,rules_hash:baseline.tables.context[0].rules_hash,data_revision:Number(context.data_revision)+1,authority_revision:Number(context.authority_revision)+1}];
  const replayObjects=current.tables.mutation_requests.flatMap(row=>{const pointer=jsonPointer(JSON.parse(String(row.result)),'mutation-results');if(!pointer)return [];check(current.objects.some(object=>object.key===pointer.key&&object.sha256===pointer.sha256),'Replay object missing or changed');return [pointer.key]});
- const deleteObjects=[...new Set([...replayObjects,...current.tables.revisions.filter(row=>deleteRows.revisions.includes(String(row.id))).flatMap(row=>{const revision=body(row);return [revision.objectKey,revision.textKey]})])].filter(key=>!keep.keepObjects.has(key)).sort();
+ const designationObjects=operation==='reset-business'?current.objects.filter(object=>object.key.startsWith('record-designations/')).map(object=>{
+  check(object.key===`record-designations/${object.sha256}.json`,'Invalid business record designation object key');keep.keepObjects.delete(object.key);return object.key;
+ }):[];
+ const deleteObjects=[...new Set([...replayObjects,...designationObjects,...current.tables.revisions.filter(row=>deleteRows.revisions.includes(String(row.id))).flatMap(row=>{const revision=body(row);return [revision.objectKey,revision.textKey]})])].filter(key=>!keep.keepObjects.has(key)).sort();
  const after=structuredClone(current.tables);for(const table of tables){after[table]=table==='mutation_requests'?[]:after[table].filter(row=>!deleteRows[table].includes(String(row.id)));for(const replacement of replaceRows[table]){after[table]=after[table].filter(row=>row.id!==replacement.id);after[table].push(replacement)}sorted(after[table])}
  const plan={version:1 as const,operation,target,baselineHash:baseline.hash,beforeHash:current.stateHash,createdAt:new Date().toISOString(),deleteRows,replaceRows,deleteObjects,preserveObjects:[...keep.keepObjects].map(([key,sha256])=>({key,sha256})).sort((a,b)=>a.key.localeCompare(b.key)),afterDatabaseHash:await databaseHash({tables:after,schema:current.schema})};return {...plan,hash:await digest(plan)};
 }

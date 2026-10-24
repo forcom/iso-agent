@@ -64,6 +64,8 @@ export function validateActionPolicy(policy: ActionPolicy): ValidationReport {
   if (["review", "approve", "reject", "confirm_receipt", "publish", "apply_assignment"].includes(policy.action) && !policy.requiresExactRevision) fail("exact_revision_required", "Decision must bind an exact revision");
   if (policy.action === "confirm_receipt" && (policy.decisionKind !== "receipt" || policy.scopeCondition.kind !== "recipient")) fail("receipt_is_not_approval", "Receipt confirms only the designated recipient and version");
   if (!policy.stateCondition.length || !["all", "system", "owner", "recipient"].includes(policy.scopeCondition.kind)) fail("policy_condition", "Policy needs explicit state and scope conditions");
+  if (policy.approvalScope !== undefined && !["record", "outcome"].includes(policy.approvalScope)) fail("approval_scope", "Unknown approval scope cannot grant permission");
+  if (policy.requiresRecordDesignation !== undefined && policy.requiresRecordDesignation !== true) fail("record_designation", "Record designation restriction must be explicit");
   for (const condition of policy.conditions) {
     if (typeof condition.equals !== "boolean" || policy.scopeCondition.conditions?.[condition.field] !== condition.equals) fail("uncompiled_condition", `Condition ${condition.field} is not enforced by the engine scope`);
     if (!condition.reason || !condition.evidenceRefs.length) fail("condition_evidence", `Condition ${condition.field} needs its source and reason`);
@@ -113,11 +115,12 @@ export function validateKnowledge(input: KnowledgeInput): ValidationReport {
     if (policy.origin === "product_policy" && !input.productPolicies?.some(item => item.id === policy.productPolicyId && item.origin === "product_policy" && item.sourceUrl && item.decision)) errors.push(issue("unknown_product_policy", policy.id, "Product authority requires a separately declared product decision"));
     if (!roles.has(policy.roleId) && !(policy.origin === "product_policy" && ["employee", "recipient", "administrator"].includes(policy.roleId))) errors.push(issue("unknown_policy_role", policy.id, "Unregistered functional role"));
     if (!resources.has(policy.resourceTypeId)) errors.push(issue("unknown_resource_type", policy.id, "Unregistered policy resource type"));
+    if (policy.approvalScope === "record" && !input.recordTypes.some(type => type.id === policy.resourceTypeId && type.recordApproval?.label?.trim() && type.recordApproval?.limitations?.trim())) errors.push(issue("record_approval_scope", policy.id, "Record approval requires an explicit label and limitations"));
     evidence(policy.evidenceRefs, policy.id);
     policy.conditions.forEach(condition => evidence(condition.evidenceRefs, `${policy.id}.${condition.field}`));
   }
   input.roles.forEach(role => evidence(role.evidenceRefs, role.id));
-  input.recordTypes.forEach(type => { evidence(type.evidenceRefs, type.id); type.actionCoverage.forEach(item => evidence(item.evidenceRefs, `${type.id}.${item.action}`)); });
+  input.recordTypes.forEach(type => { evidence(type.evidenceRefs, type.id); type.actionCoverage.forEach(item => evidence(item.evidenceRefs, `${type.id}.${item.action}`)); type.declaredConditions?.forEach(condition => evidence(condition.evidenceRefs, `${type.id}.${condition.field}`)); });
   input.productPolicies?.forEach(policy => evidence(policy.conflicts, policy.id));
   const replacement = new Map(input.relations.filter(relation => relation.type === "supersedes").map(relation => [relation.subjectId, relation.objectId]));
   for (const start of replacement.keys()) {

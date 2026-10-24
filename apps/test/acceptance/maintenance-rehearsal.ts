@@ -52,7 +52,8 @@ export async function repairCloneIndexes(env:Env,target:MaintenanceTarget,enable
   }
  }return {missing,repaired};
 }
-async function rehearse(env:Env,target:MaintenanceTarget,runId:string,directory:string){
+export async function rehearse(env:Env,target:MaintenanceTarget,runId:string,directory:string){
+ assert.equal(target.clone,true,'Maintenance rehearsal requires an explicitly isolated clone');
  const baseline=await snapshotMaintenance(env,target);await writeMaintenanceJson(repoRoot,resolve(directory,'baseline.json'),baseline);
  const bundle=await getBundle(env,await getKnowledgeContext(env)),persons=await all<any>(env,'persons'),assignments=await all<any>(env,'assignments');
  const candidates=(action:string,type:string,admin=false)=>persons.filter(person=>person.active&&(!admin||person.isAdmin)&&bundle.policies.some(policy=>policy.action===action&&policy.resourceTypeId===type&&(policy.origin==='product_policy'&&policy.roleId==='administrator'&&person.isAdmin||assignments.some(assignment=>assignment.personId===person.id&&assignment.status==='active'&&policy.roleId===assignment.roleId))));

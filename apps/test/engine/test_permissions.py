@@ -90,6 +90,30 @@ class PermissionTests(unittest.TestCase):
         request['resource']['authorPersonId'] = 'p1'
         self.assertTrue(engine().authorize(request)['allowed'])
 
+    def test_approval_separates_implementers_with_same_role_state_and_conditions(self):
+        request = auth_fixture()
+        policy = request['snapshot']['policies'][0]
+        policy['separationCondition'] = 'not_implementer'
+        policy['conditions'] = [
+            {'field': 'requiredControlsVerified', 'equals': True, 'reason': 'Synthetic verified controls',
+             'evidenceRefs': policy['evidenceRefs']}]
+        request['resource'].update(authorPersonId='p1', conditions={'requiredControlsVerified': True})
+        cases = [
+            ('missing', {}, False),
+            ('unknown', {'implementerIds': None}, False),
+            ('self', {'implementerIds': ['p1']}, False),
+            ('self_among_others', {'implementerIds': ['p2', 'p1']}, False),
+            ('other_implementer', {'implementerIds': ['p2']}, True),
+        ]
+        for name, implementers, allowed in cases:
+            with self.subTest(implementers=name):
+                candidate = copy.deepcopy(request)
+                candidate['resource'].update(implementers)
+                result = engine().authorize(candidate)
+                self.assertEqual(result['allowed'], allowed)
+                self.assertEqual(result['policyIds'], ['policy-approve'] if allowed else [])
+                self.assertEqual(result['assignmentIds'], ['assignment-technical'] if allowed else [])
+
     def test_admin_mode_does_not_grant_regulatory_decision(self):
         request = auth_fixture(); request['actor']['isAdmin'] = True
         request['snapshot']['assignments'] = []

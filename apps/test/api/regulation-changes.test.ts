@@ -18,6 +18,8 @@ it('admin proposal, full rebuild, separate knowledge validation and old-policy p
  data.set('file',new File([original.markdown+'\n시험 개정 부기\n'],'reg.md'));data.set('artifactId',original.artifactId);data.set('documentCode',original.code);data.set('title',original.title);data.set('kind','procedure');data.set('requestKey',crypto.randomUUID());data.set('expectedContext',JSON.stringify(await getKnowledgeContext(env.bindings)));
  const upload=await app.request(`/api/admin/regulation-changes/${changeId}/files`,{method:'POST',headers:await headers('admin'),body:data},env.bindings);expect(upload.status).toBe(201);
  const built=await post(`/api/admin/regulation-changes/${changeId}/build`,'admin',{});expect(built.status).toBe(200);let candidate=await built.json() as any;
+ expect(candidate.change.diff.relations.changed.some((item:any)=>item.before.subjectId==='test-tpl-1'&&item.before.type==='has_revision')).toBe(false);
+ expect(candidate.candidate.relations.find((item:any)=>item.subjectId==='test-tpl-1'&&item.type==='has_revision').reviewStatus).toBe('candidate');
  expect((await post(`/api/admin/regulation-changes/${changeId}/decisions`,'admin',{decision:'approve',candidateHash:candidate.change.candidateHash,comment:'권한 없음'})).status).toBe(403);
  const validated=await post(`/api/admin/regulation-changes/${changeId}/decisions`,'admin',{decision:'validate_knowledge',candidateHash:candidate.change.candidateHash,comment:'전체 조항과 권한 후보를 확인함'});expect(validated.status).toBe(200);candidate=await validated.json() as any;
  expect((await post(`/api/admin/regulation-changes/${changeId}/decisions`,'reviewer',{decision:'review',candidateHash:candidate.change.candidateHash,comment:'검토'})).status).toBe(200);
@@ -93,6 +95,8 @@ it('revalidates and publishes hierarchy at the new procedure revision',async()=>
  expect((await upload(changeId,{artifactId:procedure.artifactId,documentCode:procedure.code,title:procedure.title,kind:'procedure'},procedure.markdown+'\n절차 개정\n')).status).toBe(201);
  const built=await post(`${path}/build`,'admin',{});expect(built.status).toBe(200);let candidate=await built.json() as any;
  const relation=candidate.candidate.mappings.relations.find((item:any)=>item.id==='test-hierarchy');
+ expect(candidate.change.diff.wiki.changed.some((item:any)=>item.before.title===manual.title)).toBe(false);
+ expect(candidate.candidate.wiki.find((page:any)=>page.title===manual.title).claims.every((claim:any)=>claim.reviewStatus==='candidate')).toBe(true);
  expect(relation.reviewStatus).toBe('candidate');expect(relation.subjectId).not.toBe(procedure.revisionId);
  const validated=await post(`${path}/decisions`,'admin',{decision:'validate_knowledge',candidateHash:candidate.change.candidateHash,comment:'위계와 개정 버전 확인'});expect(validated.status,await validated.clone().text()).toBe(200);candidate=await validated.json();
  for(const [person,decision] of [['reviewer','review'],['director','approve']])expect((await post(`${path}/decisions`,person,{decision,candidateHash:candidate.change.candidateHash,comment:'확인'})).status).toBe(200);

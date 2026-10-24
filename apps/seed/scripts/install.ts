@@ -1,3 +1,4 @@
+import {installInitialSchema} from "./schema";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,8 +36,7 @@ const platform = await openInstallationPlatform(root, environment);
 try {
   const tables = await platform.env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all<{ name: string }>();
   if (!tables.results.length) {
-    const migration = await readFile(resolve(root, "apps/worker/migrations/0001_erp.sql"), "utf8");
-    for (const sql of migration.split("-- statement-breakpoint").map(value => value.trim()).filter(Boolean)) await platform.env.DB.prepare(sql).run();
+    await installInitialSchema(platform.env.DB,root);
   } else if (!tables.results.some(table => table.name === "context")) throw new Error("Existing database has another schema; use a separate new database without modifying old data");
   const result = await installRelease(platform.env, bundle, { environment, preparation, sourceBytes, ruleBytes: await readFile(resolve(root, "apps/packages/ontology/rules.dl")), schemaBytes: new TextEncoder().encode(canonical(KNOWLEDGE_SCHEMA)) });
   const report = { ...result, environment, platform: environment === "demo" ? "remote demo D1/R2" : "local D1/R2 only", applicationDeployment: "not performed by this command" };

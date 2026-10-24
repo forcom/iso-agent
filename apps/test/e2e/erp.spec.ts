@@ -253,7 +253,7 @@ test('native design dimensions, exact citations, new revision and keyboard navig
   await page.goto(`/#/trace?mode=neighbors&id=${latest}`);
   await page.getByRole('button',{name:'조회',exact:true}).click();
   await page.getByRole('button',{name:'supersedes',exact:true}).click();
-  await expect(page.locator('.evidence-list blockquote')).toHaveText('# 변경된 합성 기록');
+  await expect(page.locator('.evidence-list').getByRole('heading',{name:'변경된 합성 기록',exact:true})).toBeVisible();
   await page.getByRole('link',{name:`${latest} · 1–1행`,exact:true}).click();
   await expect(page.getByText('원문·해시 일치 위치 1행',{exact:true})).toBeVisible();
   await expect(page.locator('.source-line.highlighted')).toHaveCount(1);

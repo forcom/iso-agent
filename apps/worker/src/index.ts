@@ -11,8 +11,16 @@ import {circulationRoutes} from './routes/circulations';
 import {knowledgeRoutes} from './routes/knowledge';
 import {adminRoutes} from './routes/admin';
 import {assignmentRoutes} from './routes/assignments';
+import {researchRoutes} from './routes/research';
 
 const app = new Hono<AppEnv>();
+app.use('*',async(c,next)=>{
+ const path=c.req.path;
+ if(path==='/mcp'||path.startsWith('/mcp/')||path.startsWith('/oauth/')||path.startsWith('/.well-known/oauth-')){
+  const {dotsFetch}=await import('./research/oauth');return dotsFetch(c.req.raw,c.env,c.executionCtx as ExecutionContext);
+ }
+ await next();
+});
 app.use('/api/*',async(c,next)=>{c.header('Cache-Control','no-store');await requestScope.run(new Map(),next)});
 app.onError((error,c)=>{
  if(error instanceof ApiError)return c.json({error:{code:error.code,message:error.message,details:error.details}},error.status as 400);
@@ -44,6 +52,7 @@ app.route('/api',circulationRoutes);
 app.route('/api',knowledgeRoutes);
 app.route('/api',adminRoutes);
 app.route('/api',assignmentRoutes);
+app.route('/api',researchRoutes);
 app.notFound(c=>c.json({error:{code:'NOT_FOUND',message:'대상을 찾을 수 없습니다.'}},404));
 
 export default app;

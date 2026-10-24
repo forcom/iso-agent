@@ -11,7 +11,7 @@ test('assigned non-administrator opens the ERP page and applies only source-matc
  await page.getByRole('button',{name:/지정 기록.*appointment-v1/}).click();
  await expect(page.getByText('후보 지정 또는 미충족 조건이 있어 적용할 수 없습니다.',{exact:true})).toBeVisible();
  const form=page.getByRole('form',{name:'R-01 한글 지정 대조'});
- await expect(form.getByText('2026. 4. 27. 지정 / 해제일 없음',{exact:true})).toBeVisible();
+ await expect(form.getByRole('definition').filter({hasText:'2026. 4. 27. 지정 / 해제일 없음'})).toBeVisible();
  await form.getByLabel('대상 직원',{exact:true}).selectOption('appointment-reader');
  await form.getByLabel('기능상 역할',{exact:true}).selectOption(['approver']);
  await form.getByLabel('역할·범위 대응 사유',{exact:true}).fill('합성 원문의 전사 검토·승인 업무를 승인 역할로 대조했습니다.');

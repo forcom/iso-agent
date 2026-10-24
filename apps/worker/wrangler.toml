@@ -3,18 +3,24 @@ account_id = "e3795b9711f462af967e2b8b97be2f4b"
 workers_dev = true
 main = "src/entry.ts"
 compatibility_date = "2025-10-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [vars]
 APP_NAME = "iso-agent"
 LLM_MODEL = "gpt-5.4"
 ALLOW_FICTIONAL_PERSONNEL = "true"
+RESEARCH_SCHEDULES_ENABLED = "true"
+DOTS_ENABLED = "true"
+DOTS_ORIGIN = "https://iso-agent-demo.your-e37.workers.dev"
+
+[triggers]
+crons = ["*/5 * * * *"]
 
 [assets]
 directory = "../../output/build/worker/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/mcp", "/mcp/*", "/oauth/*", "/.well-known/*"]
 
 [[d1_databases]]
 binding = "DB"
@@ -41,3 +47,7 @@ class_name = "PyreWireEngine"
 image = "../engine/Dockerfile"
 image_build_context = "../.."
 max_instances = 1
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "1748be2c296f48e19fd5e7a4656148cf"

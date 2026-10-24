@@ -5,6 +5,7 @@ import {all,get,getBundle,getKnowledgeContext,assertContext,assertExpectedContex
 import {requireAuthorization} from './engine';
 import {parseMarkdown,sha256} from './markdown';
 import {ApiError,requireValue,stringList,textField} from './errors';
+import {researchAdoption} from '../research/provenance';
 export function resourceFor(artifact:Artifact,revision:Revision) {
  return {id:artifact.id,typeIds:artifact.kind==='record'?artifact.recordTypeIds:[artifact.regulationType!],revisionId:revision.id,currentRevisionId:artifact.workingRevisionId,state:revision.state,systemIds:revision.systemIds,documentCode:artifact.documentCode,filename:revision.filename,sourceSha256:revision.sourceSha256,authorPersonId:revision.createdBy,reviewerPersonIds:revision.reviewedBy??[],requesterPersonId:revision.requesterPersonId,implementerIds:revision.implementerIds,auditedPersonIds:revision.auditedPersonIds,conditions:revision.conditions,approvalScope:revision.approvalScope};
 }
@@ -51,9 +52,11 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  // Existing authority never authorizes a different file or system by inference.
  if(artifact&&previous)await requireAuthorization(env,actor,'revise',{...resourceFor(artifact,previous),...incomingSource},context);
  const id=artifact?.id??crypto.randomUUID(),revisionId=crypto.randomUUID(),at=new Date().toISOString();
+ const adoption=await researchAdoption(env,actor,input,context,id,revisionId,parsed.sha256,previous?.id);
  const state=recordTypes.some(t=>t!.approvalRequired||t!.reviewRequired||t!.approvalCondition||t!.reviewCondition||t!.applicabilityCondition)?'draft':'registered';
  const objectKey=`sources/${revisionId}/${parsed.sha256}.md`,textKey=`text/${revisionId}/${parsed.textSha256}.txt`;
  const revision:Revision={id:revisionId,artifactId:id,filename:input.filename,sourceSha256:parsed.sha256,textSha256:parsed.textSha256,objectKey,textKey,state,createdAt:at,createdBy:actor.personId,previousRevisionId:previous?.id??null,templateRevisionIds:input.templateRevisionIds,systemIds:input.scope?[input.scope]:[],conditions:{},fieldMappings:input.fieldMappings??{},evidenceStatus:'verified'};
+ if(adoption.research)revision.research=adoption.research;
  const next:Artifact={id,documentCode:code,title,kind:'record',recordTypeIds:types,workingRevisionId:revisionId,effectiveRevisionId:state==='registered'?revisionId:artifact?.effectiveRevisionId??null,systemIds:revision.systemIds};
  const lines=parsed.markdown.split('\n'),firstLine=lines.findIndex(line=>line.trim().length>0);
  const citation=(line:number)=>({revisionId,sourceSha256:parsed.sha256,lineStart:line+1,lineEnd:line+1,quote:lines[line]});
@@ -65,10 +68,14 @@ export async function registerRecord(env:Env,actor:ActorContext,input:RecordUplo
  for(const known of await all<Artifact>(env,'artifacts'))if(known.id!==id){const line=lines.findIndex(line=>mentionsCode(line,known.documentCode));if(line>=0)add(revisionId,known.id,'references','reference_extraction','candidate',citation(line))}
  if(!artifact)relations.push(...await citingRevisions(env,code,id,context.releaseId));
  const statements=[artifact?update(env,'artifacts',id,next):env.DB.prepare('INSERT INTO artifacts VALUES(?,?,?,?)').bind(id,code,'record',JSON.stringify(next)),env.DB.prepare('INSERT INTO revisions VALUES(?,?,?)').bind(revisionId,id,JSON.stringify(revision)),...relations.map(r=>env.DB.prepare('INSERT INTO relations VALUES(?,?)').bind(r.id,JSON.stringify(r))),event(env,id,{kind:'record_registered',revisionId,actorId:actor.personId,context,authorization})];
+ statements.push(...adoption.statements);
  const result={artifactId:id,revisionId,status:state,context:{...context,dataRevision:context.dataRevision+1}};
  return withSourceCleanup(env,revisionId,[objectKey,textKey],async()=>{
   await env.SOURCES.put(objectKey,input.file as Uint8Array<ArrayBuffer>,{customMetadata:{uploadedAt:at}});await env.SOURCES.put(textKey,parsed.markdown,{customMetadata:{uploadedAt:at}});
-  return commitMutation(env,actor,key,hash,context,result,statements);
+  try{return await commitMutation(env,actor,key,hash,context,result,statements)}catch(error){
+   if(input.researchProposalId&&/UNIQUE constraint failed: research_(adoptions|jobs)/.test(String(error)))throw new ApiError(409,'PROPOSAL_CHANGED','제안 상태 또는 채택 기록이 변경되었습니다. 다시 확인해 주세요.');
+   throw error;
+  }
  });
 }
 /** References from records registered before this code existed, so links do not depend on upload order.

@@ -1,3 +1,4 @@
+import {installInitialSchema} from '../../seed/scripts/schema';
 import { resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -25,10 +26,9 @@ export async function createTestEnvironment(inputBundle?: KnowledgeBundle) {
  const base=resolve(repoRoot,'output/test/state');await mkdir(base,{recursive:true});
  const dir=await mkdtemp(resolve(base,'iso-test-'));
  validateTestTarget({name:'iso-test',remote:false,persistPath:dir});
- const mf=new Miniflare({name:'iso-test',modules:true,script:'export default { fetch(){return new Response("isolated")} }',compatibilityDate:'2025-10-01',d1Databases:{DB:'iso-test-database'},r2Buckets:{SOURCES:'iso-test-sources'},d1Persist:resolve(dir,'d1'),r2Persist:resolve(dir,'r2')});
- const bindings={DB:await mf.getD1Database('DB'),SOURCES:await mf.getR2Bucket('SOURCES'),ENGINE_URL:process.env.ISO_TEST_ENGINE_URL??'http://127.0.0.1:18765'} as unknown as Env;
- const migration=await readFile(resolve(repoRoot,'apps/worker/migrations/0001_erp.sql'),'utf8');
- for(const sql of migration.split('-- statement-breakpoint').map(s=>s.trim()).filter(Boolean)) await bindings.DB.prepare(sql).run();
+ const mf=new Miniflare({name:'iso-test',modules:true,script:'export default { fetch(){return new Response("isolated")} }',compatibilityDate:'2025-10-01',d1Databases:{DB:'iso-test-database'},r2Buckets:{SOURCES:'iso-test-sources'},kvNamespaces:['OAUTH_KV'],d1Persist:resolve(dir,'d1'),r2Persist:resolve(dir,'r2'),kvPersist:resolve(dir,'kv')});
+ const bindings={DB:await mf.getD1Database('DB'),SOURCES:await mf.getR2Bucket('SOURCES'),OAUTH_KV:await mf.getKVNamespace('OAUTH_KV'),ENGINE_URL:process.env.ISO_TEST_ENGINE_URL??'http://127.0.0.1:18765'} as unknown as Env;
+ await installInitialSchema(bindings.DB,repoRoot);
  const bundle=inputBundle??await syntheticBundle();
  await bindings.DB.prepare('INSERT INTO context VALUES(1,?,?,0,0)').bind(bundle.manifest.releaseId,bundle.manifest.rulesHash).run();
  await bindings.SOURCES.put('releases/test-release.json',JSON.stringify(bundle));

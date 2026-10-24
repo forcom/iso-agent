@@ -57,23 +57,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={{ me, people, loading, error, epoch, refresh, changePerson, dirty, markDirty, recent, visit }}>{children}</SessionContext.Provider>;
 }
 export function useSession() { const context = useContext(SessionContext); if (!context) throw new Error('SessionProvider is required'); return context; }
-export function useLoad<T>(path: string | null) {
-  const { epoch } = useSession();
+export function useLoad<T>(path: string | null, refreshInterval = 0) {
+  const { epoch, dirty } = useSession();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(Boolean(path));
-  const [reload, setReload] = useState(0);
+  const [reload, setReload] = useState({ version: 0, automatic: false });
   const previousKey = useRef('');
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const refresh = useCallback(() => setReload(value => ({ version: value.version + 1, automatic: false })), []);
+  useEffect(() => {
+    if (!path || !refreshInterval || dirty || loading) return;
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') setReload(value => ({ version: value.version + 1, automatic: true })); }, refreshInterval);
+    return () => window.clearInterval(timer);
+  }, [path, refreshInterval, dirty, loading]);
   useEffect(() => {
     const key=`${epoch}:${path}`;
+    const background = reload.automatic && previousKey.current === key;
     if (previousKey.current !== key) setData(null);
     previousKey.current=key; setError(null); setLoading(Boolean(path));
     if (!path) return;
     const controller = new AbortController();
-    void api<T>(path, { signal: controller.signal }).then(setData).catch(e => { if (e.name !== 'AbortError') setError(e); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void api<T>(path, { signal: controller.signal }).then(value => {
+      // Editing can begin after an automatic read has already started.
+      if (!background || !dirtyRef.current) setData(value);
+    }).catch(e => { if (e.name !== 'AbortError') setError(e); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [path, epoch, reload]);
-  return { data, error, loading, refresh: () => setReload(value => value + 1) };
+  }, [path, epoch, reload, refreshInterval]);
+  return { data, error, loading, refresh };
 }
 export function useDirty(value: boolean) {
   const { markDirty } = useSession();

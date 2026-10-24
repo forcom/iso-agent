@@ -1,0 +1,128 @@
+import {useState,type FormEvent} from 'react';
+import {Link,useNavigate,useParams,useSearchParams} from 'react-router-dom';
+import {post,personId,label,type Artifact,type Collection,type Context} from '../api';
+import {useDirty,useLoad,useSession} from '../session';
+import {Download,Empty,ErrorNotice,EvidenceList,Loading,MarkdownBody,Modal,PageTitle,Panel} from '../components/ui';
+import {UploadModal} from './artifacts';
+import {useWorkspaceTab} from '../workspace-tabs';
+import {nextOccurrence} from '../../src/research/schedule';
+import type {ResearchConnection,ResearchDefinition,ResearchJob,ResearchProposal,ResearchResult,ResearchSchedule,ResearchTiming} from '../../src/research/types';
+
+type TypeView={id:string;code:string;name:string;guidance:{classification:string;research:string;internalInputs:string;sourcesAndTriggers:string}|null};
+type Overview={connection:ResearchConnection;schedules:ResearchSchedule[];jobs:ResearchJob[];context:Context;instructions:{id:string;label:string}[];recordTypes:TypeView[];limit:number;schedulingEnabled:boolean};
+type SchedulePermissions={items:Record<string,{allowed:boolean;reason:string}>};
+type Detail={job:ResearchJob;connection:ResearchConnection;context:Context;events:{id:string;kind:string;actorId:string;at:string;message?:string}[];results:{id:string;quarantined:boolean;result?:ResearchResult}[];proposals:ResearchProposal[];adoptions:{id:string;artifactId:string}[]};
+const states={queued:'실행 대기',reserved:'전달 예약',running:'조사 중',needs_input:'확인 필요',partial:'부분 결과',received:'결과 도착',uncertain:'응답 미확인',failed:'실패',cancelled:'ERP 취소'};
+const formatTime=(value:string|null)=>value?new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',dateStyle:'medium',timeStyle:'short',hour12:false}).format(new Date(value)):'예정 없음';
+const today=()=>new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+const split=(value:string)=>value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+function permissionPath(types:string[],systemId:string,baseRevisionId?:string){return `/research/permission?types=${encodeURIComponent(JSON.stringify(types))}&systemId=${encodeURIComponent(systemId)}${baseRevisionId?`&baseRevisionId=${encodeURIComponent(baseRevisionId)}`:''}`}
+function ConnectionNotice({connection,schedulingEnabled}:{connection:ResearchConnection;schedulingEnabled?:boolean}){
+ return <div className="notice" role="status"><strong>{connection.state==='unconfigured'?'Dots 연결 필요':connection.state==='held'?'Dots 전달 보류':'회사 Dots 연결'}</strong><p>{connection.label} · ERP 직원 계정과 별도로 유지됩니다.</p><p>{connection.reason}</p>{schedulingEnabled===false&&<p>정기 작업 생성은 아직 활성화되지 않았습니다. 저장한 일정은 초기 연결·운영 설정 확인 후 적용됩니다.</p>}</div>;
+}
+export function ResearchPage(){
+ const load=useLoad<Overview>('/research',10000),{me,people,dirty,refresh:refreshSession}=useSession(),navigate=useNavigate(),[params]=useSearchParams();
+ const [editor,setEditor]=useState<'manual'|'schedule'|ResearchSchedule|null>(params.get('baseRevisionId')?'manual':null),[error,setError]=useState<Error|null>(null),[busy,setBusy]=useState(false);
+ const assigned=load.data?.schedules.filter(s=>me?.actor&&s.definition.assigneeId===personId(me.actor))??[];
+ const permission=useLoad<SchedulePermissions>(assigned.length&&!me?.actor?.isAdmin?`/research/schedule-permissions?release=${load.data?.context.releaseId}&authority=${load.data?.context.authorityRevision}&schedules=${encodeURIComponent(assigned.map(s=>`${s.id}:${s.version}`).join(','))}`:null);
+ useDirty(Boolean(editor)||busy);
+ const name=(id:string)=>people.find(p=>personId(p)===id)?.name??(id||'미배정');
+ async function scheduleAction(s:ResearchSchedule,run:boolean){
+  if(!load.data)return;setBusy(true);setError(null);
+  try{const result=await post<ResearchJob|ResearchSchedule>(run?`/research/schedules/${s.id}/run`:`/research/schedules/${s.id}`,{expectedContext:load.data.context,expectedVersion:s.version,...(!run?{definition:s.definition,enabled:!s.enabled}:{})});await refreshSession();load.refresh();if(run)navigate(`/research/jobs/${result.id}`)}catch(e){setError(e as Error)}finally{setBusy(false)}
+ }
+ async function removeSchedule(s:ResearchSchedule){
+  if(!load.data||!window.confirm('조사 일정을 삭제할까요? 새 정기 작업은 생성되지 않으며 기존 작업·결과·이력은 보존됩니다.'))return;
+  setBusy(true);setError(null);
+  try{await post(`/research/schedules/${s.id}/delete`,{expectedContext:load.data.context,expectedVersion:s.version});await refreshSession();load.refresh()}catch(e){setError(e as Error)}finally{setBusy(false)}
+ }
+ if(load.loading&&!load.data)return <Loading/>;
+ if(!load.data)return <ErrorNotice error={load.error} retry={load.refresh}/>;
+ const data=load.data,admin=Boolean(me?.actor?.isAdmin);
+ return <><PageTitle title="외부 조사" description="ERP에서 일정·작업을 관리하고 조사 결과를 기록 초안으로 검토합니다." actions={<><button disabled={load.loading||dirty} onClick={load.refresh}>새로고침</button><button onClick={()=>setEditor('manual')}>조사 요청</button>{admin&&<button className="primary" onClick={()=>setEditor('schedule')}>새 일정</button>}</>}/>
+  <p className="muted">{dirty?'편집 중에는 자동 갱신을 잠시 멈춥니다.':'화면을 보고 있는 동안 10초마다 자동 갱신합니다.'}</p><ConnectionNotice connection={data.connection} schedulingEnabled={data.schedulingEnabled}/><ErrorNotice error={error??load.error} retry={load.refresh}/>
+  <Panel title="조사 일정"><p className="muted">Asia/Seoul · 날짜가 없는 달은 말일 실행 · 예약 중지는 미래 작업 생성만 중지합니다.</p>{data.schedules.length?<div className="stack">{data.schedules.map(s=><ResearchScheduleCard key={`${s.id}:${data.context.releaseId}:${data.context.authorityRevision}`} schedule={s} permission={permission} assigneeName={name(s.definition.assigneeId)} pendingJobs={data.jobs.filter(j=>j.scheduleId===s.id&&!['received','cancelled','failed'].includes(j.state)).length} busy={busy} onEdit={()=>setEditor(s)} onDelete={()=>void removeSchedule(s)} onAction={run=>void scheduleAction(s,run)}/>)}</div>:<Empty>등록된 조사 일정이 없습니다.</Empty>}</Panel>
+  <Panel title="조사 작업"><p className="muted">최근 {data.limit}건 · 결과 도착은 기록 승인이나 조치 완료를 뜻하지 않습니다.</p>{data.jobs.length?<ul className="item-list">{data.jobs.map(j=><li key={j.id}><Link to={`/research/jobs/${j.id}`}><span>{j.definition.title}<small>{name(j.assigneeId)} · {formatTime(j.createdAt)}</small></span><span className="status">{states[j.state]}</span></Link></li>)}</ul>:<Empty>생성된 조사 작업이 없습니다.</Empty>}</Panel>
+  {editor&&<ResearchEditor data={data} schedule={typeof editor==='object'?editor:undefined} recurring={editor!=='manual'} baseRevisionId={editor==='manual'?params.get('baseRevisionId')??undefined:undefined} initialTypeIds={params.getAll('type')} initialSystemId={params.get('systemId')??''} onClose={()=>setEditor(null)} onSaved={()=>{setEditor(null);load.refresh();void refreshSession()}}/>}
+ </>;
+}
+function ResearchScheduleCard({schedule:s,permission,assigneeName,pendingJobs,busy,onEdit,onDelete,onAction}:{schedule:ResearchSchedule;permission:ReturnType<typeof useLoad<SchedulePermissions>>;assigneeName:string;pendingJobs:number;busy:boolean;onEdit:()=>void;onDelete:()=>void;onAction:(run:boolean)=>void}){
+ const {me}=useSession(),admin=Boolean(me?.actor?.isAdmin),mine=Boolean(me?.actor&&s.definition.assigneeId===personId(me.actor));
+ const decision=permission.data?.items[s.id],loading=mine&&!admin&&permission.loading;
+ const disabled=busy||loading||(!admin&&!decision?.allowed);
+ return <article aria-label={s.definition.title} className="research-card">
+  <h3>{s.definition.title}</h3><p>{s.definition.purpose}</p><p>주기: {s.definition.timing.kind==='three_hourly'?'3시간마다':s.definition.timing.kind==='daily'?'매일':s.definition.timing.kind==='weekly'?'매주':'매월'} · 기준 시각: {s.definition.timing.kind!=='manual'&&s.definition.timing.time} (Asia/Seoul)</p>
+  <p>담당: {assigneeName} · {s.enabled?'예약 사용':'예약 중지됨'}</p><p>{s.enabled?'다음 실행':'보류된 예정'}: {formatTime(s.nextAt)}</p>
+  {s.lastError&&<p className="notice">일정 오류로 실행 보류: {s.lastError.message}</p>}<p className="muted">생성된 미종료 작업: {pendingJobs}건 (최근 목록 기준)</p>
+  {loading&&<p className="muted">일정 실행·수정 권한을 확인하고 있습니다.</p>}
+  {decision&&!decision.allowed&&<p className="notice">이 일정에 포함된 모든 기록 유형의 작성 권한이 필요합니다. 회사 공통 조사 일정은 운영 관리자가 실행·관리할 수 있습니다.</p>}
+  {mine&&!admin&&<ErrorNotice error={permission.error} retry={permission.refresh}/>}
+  {(admin||mine)&&<div className="actions"><button disabled={disabled} onClick={onEdit}>일정 수정</button><button disabled={disabled} onClick={()=>onAction(false)}>{s.enabled?'예약 중지':'예약 재개'}</button><button disabled={disabled} onClick={()=>onAction(true)}>지금 실행</button>{admin&&<button disabled={busy} onClick={onDelete}>일정 삭제</button>}</div>}
+ </article>;
+}
+function ResearchEditor({data,schedule,recurring,baseRevisionId,initialTypeIds,initialSystemId,onClose,onSaved}:{data:Overview;schedule?:ResearchSchedule;recurring:boolean;baseRevisionId?:string;initialTypeIds:string[];initialSystemId:string;onClose:()=>void;onSaved:()=>void}){
+ const {people,me}=useSession(),systems=useLoad<Collection>('/entities?kind=AISystem'),navigate=useNavigate();
+ const [definition,setDefinition]=useState<ResearchDefinition>(()=>schedule?.definition??{title:'',purpose:'',instruction:'environment',targets:'',jurisdiction:'KR',keywords:[],sources:[],recordTypeIds:initialTypeIds,fields:[],systemId:initialSystemId,assigneeId:personId(me!.actor!),periodStart:today(),periodEnd:today(),maxSources:10,timing:recurring?{kind:'daily',time:'09:00',startDate:today(),endDate:''}:{kind:'manual'}});
+ const [sourceText,setSourceText]=useState(definition.sources.join('\n')),[keywordText,setKeywordText]=useState(definition.keywords.join(', ')),[fieldText,setFieldText]=useState(definition.fields.join('\n'));
+ const [error,setError]=useState<Error|null>(null),[busy,setBusy]=useState(false),[modified,setModified]=useState(false);
+ const permission=useLoad<{allowed:boolean;reason:string}>(recurring&&me?.actor?.isAdmin?null:permissionPath(definition.recordTypeIds,definition.systemId,baseRevisionId));
+ const allowed=recurring&&me?.actor?.isAdmin||permission.data?.allowed;
+ useDirty(modified||busy);
+ function patch(values:Partial<ResearchDefinition>){setDefinition(old=>({...old,...values}));setModified(true)}
+ function timing(values:Partial<Exclude<ResearchTiming,{kind:'manual'}>>){const prior=definition.timing.kind==='manual'?{kind:'daily',time:'09:00',startDate:today(),endDate:''}:definition.timing;patch({timing:{...prior,...values} as ResearchTiming})}
+ let preview:string|null=null;try{preview=nextOccurrence(definition.timing,new Date().toISOString())}catch{/* Invalid editor inputs are validated on submit. */}
+ async function submit(event:FormEvent){event.preventDefault();setBusy(true);setError(null);
+  try{const result=await post<ResearchJob|ResearchSchedule>(schedule?`/research/schedules/${schedule.id}`:recurring?'/research/schedules':'/research/jobs',{definition:{...definition,sources:split(sourceText),keywords:split(keywordText),fields:split(fieldText)},expectedContext:data.context,...(schedule?{expectedVersion:schedule.version,enabled:schedule.enabled}:{}),...(baseRevisionId?{baseRevisionId}:{})});setModified(false);onSaved();if(!recurring)navigate(`/research/jobs/${result.id}`)}catch(e){setError(e as Error)}finally{setBusy(false)}
+ }
+ const selected=data.recordTypes.filter(t=>definition.recordTypeIds.includes(t.id));
+ return <Modal title={recurring?'조사 일정 설정':'조사 요청'} onClose={()=>{if(!modified||window.confirm('저장하지 않은 설정을 닫으시겠습니까?'))onClose()}}><form className="stack" onSubmit={submit}>
+  <label>업무명<input required maxLength={200} value={definition.title} onChange={e=>patch({title:e.target.value})}/></label>
+  <label>조사 목적<textarea required maxLength={4000} value={definition.purpose} onChange={e=>patch({purpose:e.target.value})}/></label>
+  <div className="form-grid"><label>조사 지침<select value={definition.instruction} onChange={e=>patch({instruction:e.target.value})}>{data.instructions.map(i=><option key={i.id} value={i.id}>{i.label}</option>)}</select></label><label>국가·적용 범위<input required value={definition.jurisdiction} onChange={e=>patch({jurisdiction:e.target.value})}/></label></div>
+  <label>조사 대상<input required maxLength={2000} value={definition.targets} onChange={e=>patch({targets:e.target.value})}/></label>
+  <label>대상 시스템<select value={definition.systemId} onChange={e=>patch({systemId:e.target.value})}><option value="">특정 시스템 없음</option>{systems.data?.items.map(s=><option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>
+  <label>기록 유형<select aria-label="기록 유형" required multiple size={4} value={definition.recordTypeIds} onChange={e=>patch({recordTypeIds:Array.from(e.target.selectedOptions,o=>o.value)})}>{data.recordTypes.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+  {selected.map(t=>t.guidance?<details key={t.id}><summary>{t.name} · {t.guidance.classification==='C'?'내부 집계 중심':t.guidance.classification==='A'?'외부 조사 중심':'외부 조사 보조'}</summary><p>{t.guidance.research}</p><p>필요한 내부 입력: {t.guidance.internalInputs}</p><p className="muted">{t.guidance.sourcesAndTriggers}</p></details>:null)}
+  <label>조사할 항목<textarea required value={fieldText} onChange={e=>{setFieldText(e.target.value);setModified(true)}} placeholder="한 줄에 한 항목"/></label>
+  <label>검색어<input value={keywordText} onChange={e=>{setKeywordText(e.target.value);setModified(true)}} placeholder="쉼표로 구분"/></label>
+  <label>우선 확인할 출처<textarea value={sourceText} onChange={e=>{setSourceText(e.target.value);setModified(true)}} placeholder="공개 HTTPS URL, 한 줄에 하나"/></label>
+  <div className="form-grid"><label>조사 시작일<input required type="date" value={definition.periodStart} onChange={e=>patch({periodStart:e.target.value,...(recurring?{periodEnd:e.target.value}:{})})}/></label>{!recurring&&<label>조사 종료일<input required type="date" min={definition.periodStart} value={definition.periodEnd} onChange={e=>patch({periodEnd:e.target.value})}/></label>}</div>
+  {recurring&&<p className="muted">최초 조사 시작일부터 각 실행일까지 조사합니다. 이전에 확인하지 못한 기간도 포함하며 출처 한도에 따라 부분 결과가 될 수 있습니다.</p>}
+  <div className="form-grid"><label>업무 담당자<select aria-label="업무 담당자" value={definition.assigneeId} onChange={e=>patch({assigneeId:e.target.value})}><option value="">미배정</option>{people.map(p=><option key={personId(p)} value={personId(p)}>{p.name}</option>)}</select></label><label>출처 한도<input required type="number" min={1} max={100} value={definition.maxSources} onChange={e=>patch({maxSources:Number(e.target.value)})}/></label></div>
+  {recurring&&definition.timing.kind!=='manual'&&<fieldset className="stack"><legend>반복 일정 · Asia/Seoul</legend><div className="form-grid"><label>실행 주기<select aria-label="실행 주기" value={definition.timing.kind} onChange={e=>timing({kind:e.target.value as Exclude<ResearchTiming,{kind:'manual'}>['kind'],weekday:1,day:1})}><option value="three_hourly">3시간마다</option><option value="daily">매일</option><option value="weekly">매주</option><option value="monthly">매월</option></select></label><label>실행 시각<input required type="time" value={definition.timing.time} onChange={e=>timing({time:e.target.value})}/></label></div>
+   {definition.timing.kind==='three_hourly'&&<p className="muted">일정 시작일의 실행 시각부터 3시간 간격으로 반복합니다.</p>}
+   {definition.timing.kind==='weekly'&&<label>요일<select value={definition.timing.weekday??1} onChange={e=>timing({weekday:Number(e.target.value)})}>{['일','월','화','수','목','금','토'].map((d,i)=><option value={i} key={d}>{d}요일</option>)}</select></label>}
+   {definition.timing.kind==='monthly'&&<label>매월 날짜<input aria-label="매월 날짜" required type="number" min={1} max={31} value={definition.timing.day??1} onChange={e=>timing({day:Number(e.target.value)})}/><small>해당 날짜가 없는 달은 말일에 실행합니다.</small></label>}
+   <div className="form-grid"><label>일정 시작일<input required type="date" value={definition.timing.startDate} onChange={e=>timing({startDate:e.target.value})}/></label><label>일정 종료일<input type="date" min={definition.timing.startDate} value={definition.timing.endDate} onChange={e=>timing({endDate:e.target.value})}/></label></div><p>다음 실행: {formatTime(preview)} (Asia/Seoul)</p><p className="muted">이미 생성된 작업은 당시 조사 정의를 유지합니다.</p></fieldset>}
+  <ErrorNotice error={error??permission.error??systems.error}/>{!allowed&&permission.data?.reason&&<p className="notice">{permission.data.reason}</p>}<div className="actions"><button type="button" onClick={onClose}>취소</button><button className="primary" disabled={busy||!allowed||permission.loading}>{recurring?'일정 저장':'조사 작업 생성'}</button></div>
+ </form></Modal>;
+}
+export function ResearchJobPage(){
+ const {id}=useParams(),load=useLoad<Detail>(`/research/jobs/${encodeURIComponent(id??'')}`,10000),{me,people,dirty,refresh:refreshSession}=useSession();
+ const [error,setError]=useState<Error|null>(null),[busy,setBusy]=useState(false),[assignee,setAssignee]=useState<string|null>(null),[supplement,setSupplement]=useState(''),[adopting,setAdopting]=useState<ResearchProposal|null>(null);
+ const job=load.data?.job,permission=useLoad<{allowed:boolean;reason:string}>(job?permissionPath(job.definition.recordTypeIds,job.definition.systemId,job.baseRevisionId):null);
+ const base=useLoad<{artifact:Artifact}>(adopting?.baseRevisionId?`/artifacts/by-revision/${encodeURIComponent(adopting.baseRevisionId)}`:null);
+ useWorkspaceTab(job?`research:${job.id}`:undefined,job?.definition.title);
+ useDirty(Boolean(supplement)||busy||assignee!==null||Boolean(adopting));
+ const name=(value:string)=>people.find(p=>personId(p)===value)?.name??(value==='system:erp-scheduler'?'ERP 정기 일정':value||'미배정');
+ const canManage=me?.actor?.isAdmin||job&&permission.data?.allowed&&[job.assigneeId,job.requestedBy].includes(personId(me!.actor!));
+ async function change(action:string){if(!job||!load.data)return;setBusy(true);setError(null);
+  try{await post(`/research/jobs/${job.id}`,{action,expectedVersion:job.version,expectedContext:load.data.context,assigneeId:assignee??job.assigneeId,supplement});setAssignee(null);setSupplement('');await refreshSession();load.refresh()}catch(e){setError(e as Error)}finally{setBusy(false)}
+ }
+ if(load.loading&&!load.data)return <Loading/>;
+ if(!load.data||!job)return <ErrorNotice error={load.error} retry={load.refresh}/>;
+ const data=load.data;
+ return <><PageTitle title={job.definition.title} description={`${states[job.state]} · ${formatTime(job.createdAt)}`} actions={<><button disabled={load.loading||dirty} onClick={load.refresh}>새로고침</button><Link className="button" to="/research">외부 조사 목록</Link></>}/><p className="muted">{dirty?'편집 중에는 자동 갱신을 잠시 멈춥니다.':'화면을 보고 있는 동안 10초마다 자동 갱신합니다.'}</p><ConnectionNotice connection={data.connection}/><ErrorNotice error={error??load.error} retry={load.refresh}/>
+  <div className="stack"><Panel title="작업 범위와 담당"><p>{job.definition.purpose}</p><p>대상: {job.definition.targets} · {job.definition.jurisdiction}</p><p>조사 기간: {job.definition.periodStart} ~ {job.definition.periodEnd}</p><p>요청자: {name(job.requestedBy)}</p><p>원래 담당: {name(job.definition.assigneeId)} · 설정 버전: {job.scheduleVersion??'일회성'}</p><p>{job.message}</p><label>현재 담당자<select aria-label="현재 담당자" value={assignee??job.assigneeId} disabled={!canManage||busy} onChange={e=>setAssignee(e.target.value)}><option value="">미배정</option>{people.map(p=><option key={personId(p)} value={personId(p)}>{p.name}</option>)}</select></label><div className="actions"><button disabled={!canManage||busy||assignee===null} onClick={()=>void change('assign')}>담당 변경</button>{!['received','cancelled'].includes(job.state)&&<button disabled={!canManage||busy} onClick={()=>{if(window.confirm('ERP의 결과 접수를 중지합니다. 이미 시작된 Dots의 종료는 별도 확인이 필요합니다.'))void change('cancel')}}>실행 취소</button>}</div></Panel>
+  {['needs_input','partial','failed','uncertain'].includes(job.state)&&<Panel title="조사 범위 보완"><label>보완 내용<textarea value={supplement} onChange={e=>setSupplement(e.target.value)} maxLength={4000}/></label><p className="muted">현재 목적에 필요한 정보를 추가합니다. 조사 목적·대상 변경은 새 작업을 생성해 주세요.</p><button disabled={!canManage||busy||!supplement.trim()} onClick={()=>void change('resume')}>보완 후 재실행</button></Panel>}
+  {data.results.map(r=>r.quarantined?<Panel key={r.id} title="지연 결과 격리"><p>취소·만료된 시도의 결과입니다. 현재 제안에 반영하지 않았습니다.</p></Panel>:r.result?<Panel key={r.id} title="조사 결과·근거"><p>{r.result.summary}</p><p>확인 범위: {r.result.checkedScope} · {r.result.coverage==='partial'?'부분 결과':r.result.coverage==='no_change'?'확인 범위에서 변경 없음':'요청 범위 결과 도착'}</p>{r.result.findings.map((f,i)=><p key={i}>{({external_fact:'외부 사실 보고',company_relevance:'회사 관련성',interpretation:'해석',proposal:'제안',unknown:'미확인'})[f.kind]}: {f.text}</p>)}{r.result.sources.map(s=><article key={s.id} className="research-card"><h3><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title}</a></h3><p>{s.publisher} · {formatTime(s.accessedAt)}</p><blockquote>{s.quote}</blockquote><p className="notice">{s.reason}</p></article>)}<EvidenceList items={r.result.internalEvidence.map(ref=>({...ref}))}/>{r.result.actions.length>0&&<><h3>조치 제안</h3><ul>{r.result.actions.map((a,i)=><li key={i}>{a.text} — {a.reason}<p className="muted">담당·기한 제안: {a.ownerSuggestion} / {a.dueSuggestion} · 검증 방법: {a.verificationMethod}</p></li>)}</ul></>}{r.result.questions.length>0&&<><h3>확인할 사항</h3><ul>{r.result.questions.map((q,i)=><li key={i}>{q}</li>)}</ul></>}{r.result.failedSources.length>0&&<p className="notice">미확인 출처: {r.result.failedSources.join(', ')}</p>}</Panel>:null)}
+  <Panel title="기록 초안"><p className="muted">제안은 공식 기록·수행 증거가 아닙니다. 다운로드해 검토·보완한 Markdown을 기존 기록 등록 절차로 채택하세요.</p>{data.proposals.length?data.proposals.map(p=><ResearchProposalCard key={p.id} proposal={p} job={job} adoption={data.adoptions.find(a=>a.id===p.id)} onAdopt={()=>setAdopting(p)}/>):<Empty>접수된 기록 초안이 없습니다.</Empty>}</Panel>
+  <Panel title="처리 이력"><ol className="timeline">{data.events.map(e=><li key={e.id}><strong>{eventName(e.kind)}</strong><p>{name(e.actorId)} · {formatTime(e.at)}</p>{e.message&&<p>{e.message}</p>}</li>)}</ol>{job.supplements.map((s,i)=><p key={i}>보완: {s.text} · {name(s.personId)}</p>)}</Panel></div>
+  {adopting&&(!adopting.baseRevisionId||base.data)&&<UploadModal artifact={base.data?.artifact} research={{proposalId:adopting.id,recordTypeId:adopting.recordTypeId,scope:job.definition.systemId,title:adopting.title}} onClose={()=>setAdopting(null)} onSuccess={load.refresh}/>}<ErrorNotice error={base.error}/>
+ </>;
+}
+function ResearchProposalCard({proposal:p,job,adoption,onAdopt}:{proposal:ResearchProposal;job:ResearchJob;adoption?:{artifactId:string};onAdopt:()=>void}){
+ const permission=useLoad<{allowed:boolean;reason:string}>(adoption?null:permissionPath([p.recordTypeId],job.definition.systemId,p.baseRevisionId));
+ return <article className="research-card"><h3>{p.title}</h3><MarkdownBody markdown={p.markdown}/><ErrorNotice error={permission.error}/><div className="actions"><Download text={p.markdown} filename={`research-${p.id}.md`}/>{adoption?<Link to={`/records/${adoption.artifactId}`}>채택한 기록 보기</Link>:<button disabled={!permission.data?.allowed||job.attemptId!==p.attemptId||!['received','partial'].includes(job.state)} onClick={onAdopt}>기록으로 채택</button>}</div></article>;
+}
+function eventName(kind:string){const labels:Record<string,string>={schedule_created:'일정 생성',schedule_changed:'일정 변경',job_created:'조사 요청',scheduled:'정기 작업 생성',assigned:'담당 변경',assign:'담당 변경',cancel:'ERP 취소',resume:'보완 후 재실행',reserved:'전달 예약',started:'조사 시작',progress:'조사 진행 보고',attempt_finished:'실행 결과 접수',late_result:'지연 결과 격리',timeout:'응답 미확인',adopted:'기록 채택'};return labels[kind.replace('research.','')]??'조사 이력'}

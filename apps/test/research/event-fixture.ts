@@ -6,7 +6,7 @@ export function receiver(callback?:(event:any)=>Response|Promise<Response>){
  const original=globalThis.fetch;
  return vi.fn(async(input:any,init?:RequestInit)=>{
   if(String(input)!==subscription.delivery.url)return original(input,init);
-  expect(init?.redirect).toBe('error');
+  expect(init?.redirect).toBe('manual');
   const headers=new Headers(init?.headers),body=String(init?.body),id=headers.get('webhook-id')!,timestamp=headers.get('webhook-timestamp')!;
   const signature='v1,'+createHmac('sha256',Buffer.alloc(32,7)).update(`${id}.${timestamp}.${body}`).digest('base64');
   expect(headers.get('webhook-signature')!.split(' ')).toContain(signature);

@@ -26,7 +26,8 @@ async function currentSubscription(env:Env):Promise<Subscription|null>{const r=a
 async function signedPost(env:Env,s:Subscription,id:string,body:string,now:string){
  const at=new Date(now),keys=[s.secret,...(s.previousSecret&&s.rotateUntil!>now?[s.previousSecret]:[])];
  const signatures=await Promise.all(keys.map(async key=>new Webhook(await openSecret(env,key)).sign(id,at,body)));
- return fetch(callbackUrl(s.url),{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','webhook-id':id,'webhook-timestamp':String(Math.floor(at.getTime()/1000)),'webhook-signature':signatures.join(' '),'X-MCP-Subscription-Id':s.id},body});
+ // Workers supports manual redirects; both callers reject non-2xx responses.
+ return fetch(callbackUrl(s.url),{method:'POST',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{'Content-Type':'application/json','webhook-id':id,'webhook-timestamp':String(Math.floor(at.getTime()/1000)),'webhook-signature':signatures.join(' '),'X-MCP-Subscription-Id':s.id},body});
 }
 export async function subscribeResearch(env:Env,grantId:string,input:z.infer<typeof subscribeSchema>,now=new Date().toISOString()){
  const url=callbackUrl(input.delivery.url),secret=input.delivery.secret;
@@ -43,10 +44,11 @@ export async function subscribeResearch(env:Env,grantId:string,input:z.infer<typ
   const challenge=crypto.randomUUID()+crypto.randomUUID();
   try{
    const response=await signedPost(env,next,'verify_'+crypto.randomUUID(),JSON.stringify({type:'verification',challenge}),now);
+   console.info('research.callback_response',{status:response.status,contentType:response.headers.get('content-type')});
    // Challenge responses are tiny; cancel an oversized body before parsing it.
    const value=await readRequestBody(new Request('https://response.invalid',{method:'POST',body:response.body,duplex:'half'} as RequestInit),4096);
    if(!response.ok||value.tooLarge||!equalSecret(String(JSON.parse(value.text).challenge??''),challenge))throw new Error('challenge_failed');
-  }catch{throw new ProtocolError(-32015,'Callback verification failed',{reason:'challenge_failed'})}
+  }catch(error){console.warn('research.callback_failed',{kind:error instanceof Error?error.name:'unknown',message:error instanceof Error?error.message.replaceAll(secret,'[redacted]').replaceAll(url,'[callback]').replace(/https?:\/\/\S+/g,'[url]').slice(0,200):'unknown'});throw new ProtocolError(-32015,'Callback verification failed',{reason:'challenge_failed'})}
  }else next.verifiedAt=old!.verifiedAt;
  const company=await connection(env),statements:D1PreparedStatement[]=[];
  if(old){

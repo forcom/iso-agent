@@ -16,13 +16,16 @@ import type {Env} from '../../worker/src/types';
 import type {GraphResult,Relation} from '../../packages/contracts/src/index';
 import {openStaging} from '../staging/platform';
 
-export function verifyMaintenanceTrace(trace:Pick<GraphResult,'relations'|'excluded'|'unknown'>|undefined,relations:Relation[]){
+export function verifyMaintenanceTrace(trace:Pick<GraphResult,'relations'|'excluded'|'unknown'>|undefined,relations:Relation[],recordRelations:Relation[]=[]){
  const hierarchy=new Set(relations.filter(row=>row.type==='subordinate_to').map(row=>row.id));
  if(!hierarchy.size)return false;
  assert.ok(trace&&trace.relations.some(row=>row.type==='subordinate_to'&&hierarchy.has(row.id)),'Hierarchy missing from trace');
  assert.ok(!trace.unknown.some(row=>hierarchy.has(row.id)),'Unresolved hierarchy in trace');
  // Applicability stays unknown until a real record supplies its condition; it is not broken provenance.
  for(const excluded of trace.excluded){
+  const candidate=recordRelations.find(row=>row.id===excluded.id);
+  // Extracted record links remain excluded candidates; they are not hierarchy evidence.
+  if(!relations.some(row=>row.id===excluded.id)&&excluded.reason==='RELATION_NOT_VALIDATED'&&candidate?.type==='references'&&candidate.origin==='reference_extraction'&&candidate.reviewStatus==='candidate')continue;
   const relation=relations.find(row=>row.id===excluded.id);
   assert.ok(excluded.reason==='CONDITION_UNKNOWN'&&relation?.type==='requires_record_type'&&relation.reviewStatus==='validated'&&relation.conditionStatus==='unknown'&&relation.condition&&trace.unknown.some(row=>row.id===relation.id&&row.reason===relation.condition),`Unverified trace relation: ${excluded.id} ${excluded.reason}`);
  }
@@ -85,7 +88,7 @@ export async function rehearse(env:Env,target:MaintenanceTarget,runId:string,dir
  const plan=await planMaintenance(env,target,baseline,'reset-business');await writeMaintenanceJson(repoRoot,resolve(directory,'reset-plan.json'),plan);const result=await applyMaintenance(env,target,baseline,plan);assert.deepEqual(result.pendingObjects,[]);
  const after=await snapshotMaintenance(env,target);assert.equal((await applyMaintenance(env,target,baseline,plan)).alreadyApplied,true);assert.equal((await snapshotMaintenance(env,target)).stateHash,after.stateHash);
  assert.deepEqual(after.tables.assignments,baseline.tables.assignments);assert.deepEqual(after.tables.persons,baseline.tables.persons);assert.ok(!after.tables.artifacts.some(row=>row.id===record.artifactId));assert.equal(after.tables.sessions.length,0);assert.equal(after.tables.mutation_requests.length,0);
- const trace=hierarchy.length?await queryGraph(env,await getKnowledgeContext(env),'trace',hierarchy[0].objectId):undefined,traceVerified=verifyMaintenanceTrace(trace,restoredBundle.relations);
+ const trace=hierarchy.length?await queryGraph(env,await getKnowledgeContext(env),'trace',hierarchy[0].objectId):undefined,recordRelations=await all<Relation>(env,'relations'),traceVerified=verifyMaintenanceTrace(trace,restoredBundle.relations,recordRelations);
  let indexCount=0;for(const source of bundle.sources.filter(source=>source.kind==='index')){const response=await app.request(`/api/source-index/${source.revisionId}`,{headers:await client(author.id)},env);assert.equal(response.status,200,await response.clone().text());indexCount++}
  const restoreFence=await snapshotMaintenance(env,target);await restoreMaintenanceBackup(env,target,backup,restoreFence.stateHash);assert.equal((await snapshotMaintenance(env,target)).stateHash,backup.stateHash);
  return {baselineHash:baseline.hash,backupHash:backup.hash,backupRestored:true,idempotent:true,checks:{persons:baseline.tables.persons.length,assignments:baseline.tables.assignments.length,hierarchyRelations:hierarchy.length,expectedHierarchyRelations:target.environment==='local'?38:hierarchy.length,traceVerified,unresolvedConditionalRelations:trace?.excluded??[],indexSources:indexCount,syntheticWorkflow:true,exactReleaseRestored:true,retainedReleaseHistory:true,immutableTriggers:true},planHash:plan.hash};

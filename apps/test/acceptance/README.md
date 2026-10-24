@@ -42,6 +42,8 @@ pnpm --filter @iso-agent/test exec tsx acceptance/maintenance-rehearsal.ts --run
 
 계층 추적 검사에서는 검증된 `requires_record_type`의 적용 조건이 아직 미판정인 경우에만 해당 `CONDITION_UNKNOWN` 제외를 허용하고, 보고서의 `checks.unresolvedConditionalRelations`에 그대로 기록한다. 계층 관계 누락·미판정, 원문 근거 손상, 미검토 관계와 선언된 조건에 대응하지 않는 제외는 실패한다. 조건부 기록의 적용 여부를 자동 확정하지 않는다.
 
+보존된 기록에서 자동 추출한 `references` 후보는 별도로 대조한다. 실제 기록 관계 저장소에 같은 ID와 `origin: reference_extraction`, `reviewStatus: candidate`가 있는 `RELATION_NOT_VALIDATED` 제외는 후보 상태 그대로 보고서에 남긴다. 계층 검증의 근거로 사용하거나 검토 완료로 변경하지 않는다. 알 수 없는 관계, 규정 계층의 미검증 관계, 원문 누락·변경은 계속 실패한다.
+
 누락 색인의 원인을 진단하려면 새 `run-id`에 `--repair-clone-index`를 명시할 수 있다. 설치 번들에 담긴 색인 텍스트가 원본 SHA-256과 정확히 일치할 때만 복제본에 복원한다. 결과는 `passed-repaired-clone`과 `provenanceRepaired: true`로 기록하며 실제 환경의 실행 게이트를 열지 않는다. 원본 환경은 수정하지 않는다.
 
 원격 격리 예행은 별도 사용자 확인 후 `--target staging --config output/test/staging/<설정 파일> --confirm-target <iso-test-g10-이름>`을 지정한다. 합성 원문만 있는 G-10 격리 자원에 한정하며 데모 구성으로 실행할 수 없다. 이 예행은 실제 원격 D1/R2를 쓰므로 일반 회귀시험에 포함하지 않는다.
@@ -55,6 +57,8 @@ pnpm maintenance:business apply --environment local --run-id r2-local-001 --stat
 ```
 
 `--operation restore-release`는 시작 릴리스와 규정 포인터를 복귀시키고 변경 이력을 보존한다. `reset-business`는 시작 시 직원·역할과 그 근거를 보존하며 시험 중 역할 적용을 되돌린다. 두 작업 모두 계획에 결합된 환경·현재 상태·기준 해시가 달라지면 중단한다. 적용 직전 전체 D1 행/SQL과 R2 바이트 백업을 `backup/before-<planHash>.{json,sql}`에 저장한다. 삭제 계획을 검토한 뒤 적용하며, `pendingObjects`가 남으면 같은 계획으로 재실행한다. DB 커밋을 반복하거나 백업을 덮어쓰지 않는다.
+
+업무와 외부 조사를 함께 초기화하도록 명시적으로 승인받은 경우에는 `--operation reset-business-and-research`를 사용한다. 현재 직원·역할을 그대로 유지하려면 초기화 직전 스냅샷을 기준으로 삼는다. Dots 전달을 보류하고 모든 조사 일정을 비활성화한 뒤, 실행 중이거나 종료 여부가 불확실한 작업이 없어야 한다. 일정·작업·실행권·결과·제안·채택 및 관련 업무 이력은 삭제하지만 회사 Dots 연결 행과 이벤트 구독은 보존하고 OAuth KV·연결 secret은 변경하지 않는다. 보존할 규정·직원 근거가 조사 이력을 참조하면 중단한다. 적용 시 조사 행 전체도 다시 대조하므로 구독 갱신·콜백이 경합하면 오래된 계획으로 삭제하지 않는다. 초기화 완료와 보존 검증 후, 보류 전 연결 상태가 유효한지 확인하여 전달을 재개한다.
 
 삭제는 DB에서 용도를 확인한 업무 원문·재전송 응답 객체에 한정한다. 실패한 쓰기가 남긴 참조 없는 R2 객체나 용도가 불명확한 객체는 자동으로 삭제하지 않는다. 규정 변경 비교표와 그 원문 근거는 이력으로 보존한다.
 

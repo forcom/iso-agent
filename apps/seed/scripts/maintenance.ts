@@ -13,9 +13,10 @@ type Table=keyof typeof columns;
 const tables=Object.keys(columns) as Table[];
 type Tables=Record<Table,Row[]>;
 export interface MaintenanceSnapshot {version:1;target:MaintenanceTarget;createdAt:string;tables:Tables;schema:SchemaRow[];objects:StoredObject[];stateHash:string;hash:string}
-export interface MaintenancePlan {version:1;operation:'reset-business'|'restore-release';target:MaintenanceTarget;baselineHash:string;beforeHash:string;createdAt:string;deleteRows:Record<Table,string[]>;replaceRows:Record<Table,Row[]>;deleteObjects:string[];preserveObjects:Array<{key:string;sha256:string}>;afterDatabaseHash:string;hash:string}
+export interface MaintenancePlan {version:1;operation:'reset-business'|'reset-business-and-research'|'restore-release';target:MaintenanceTarget;baselineHash:string;beforeHash:string;createdAt:string;deleteRows:Record<Table,string[]>;replaceRows:Record<Table,Row[]>;deleteObjects:string[];preserveObjects:Array<{key:string;sha256:string}>;afterDatabaseHash:string;hash:string}
 function check(condition:unknown,message:string):asserts condition {if(!condition)throw new Error(message)}
 const body=(row:Row)=>JSON.parse(String(row.body));
+const researchWorkEvent=(row:Row)=>{const e=body(row);return String(e.kind).startsWith('research.')&&Boolean(e.jobId||e.scheduleId)};
 const sorted=<T>(rows:T[])=>rows.sort((a,b)=>canonical(a).localeCompare(canonical(b)));
 const digest=(value:unknown)=>sha256(canonical(value));
 const databaseHash=(data:{tables:Tables;schema:SchemaRow[]})=>digest({tables:data.tables,schema:data.schema});
@@ -54,7 +55,7 @@ function recordDesignationPointer(value:any):{key:string;sha256:string}|undefine
  check(typeof hash==='string'&&/^[a-f0-9]{64}$/.test(hash)&&key===`record-designations/${hash}.json`,'Invalid business record designation pointer');
  return {key,sha256:hash};
 }
-async function preservation(current:MaintenanceSnapshot,baseline:MaintenanceSnapshot){
+async function preservation(current:MaintenanceSnapshot,baseline:MaintenanceSnapshot,resetResearch=false){
  const artifacts=new Map(current.tables.artifacts.map(row=>[String(row.id),row])),revisions=new Map(current.tables.revisions.map(row=>[String(row.id),row])),objects=new Map(current.objects.map(object=>[object.key,object]));
  const keepArtifacts=new Set<string>(),keepRevisions=new Set<string>(),keepObjects=new Map<string,string>(),sourceRevisions=new Map<string,{sha256:string;markdown:string}>();
  const keepObject=(key:string,hash:string)=>{const object=objects.get(key);check(object&&object.sha256===hash,`Preserved source object missing or changed: ${key}`);keepObjects.set(key,hash);return object};
@@ -79,7 +80,7 @@ async function preservation(current:MaintenanceSnapshot,baseline:MaintenanceSnap
  let expanded=true;while(expanded){const size=keepArtifacts.size+keepRevisions.size;
   for(const id of keepRevisions){const row=revisions.get(id);if(!row&&sourceRevisions.has(id)){keepRevisions.delete(id);continue}check(row,`Missing provenance revision: ${id}`);keepArtifacts.add(String(row.artifact_id))}
   for(const row of current.tables.revisions)if(keepArtifacts.has(String(row.artifact_id))){const revision=body(row);keepRevisions.add(String(row.id));for(const id of [revision.previousRevisionId,...(revision.templateRevisionIds??[]),...references(revision).map(ref=>ref.revisionId)])if(id&&(!sourceRevisions.has(id)||revisions.has(id)))keepRevisions.add(id)}
-  const retainedEvents=current.tables.events.filter(row=>row.artifact_id===null||keepArtifacts.has(String(row.artifact_id))).map(body),retainedDecisions=current.tables.decisions.filter(row=>keepRevisions.has(String(row.revision_id))||body(row).changeId&&current.tables.regulation_changes.some(change=>change.id===body(row).changeId)).map(body);
+  const retainedEvents=current.tables.events.filter(row=>(row.artifact_id===null||keepArtifacts.has(String(row.artifact_id)))&&!(resetResearch&&researchWorkEvent(row))).map(body),retainedDecisions=current.tables.decisions.filter(row=>keepRevisions.has(String(row.revision_id))||body(row).changeId&&current.tables.regulation_changes.some(change=>change.id===body(row).changeId)).map(body);
   for(const item of [...retainedEvents,...retainedDecisions,...changes,...[...keepRevisions].filter(id=>revisions.has(id)).map(id=>body(revisions.get(id)!))]){
    for(const ref of references(item)){evidence.set(canonical(ref),ref);if(!sourceRevisions.has(ref.revisionId)||revisions.has(ref.revisionId))keepRevisions.add(ref.revisionId)}
    if(item.revisionId&&revisions.has(item.revisionId))keepRevisions.add(item.revisionId);
@@ -98,11 +99,16 @@ function restoredRegulations(current:MaintenanceSnapshot,baseline:MaintenanceSna
 }
 /** `snapshot` lets a caller reuse a state it has just read (the pre-apply backup) instead of reading every R2 object again. */
 export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:MaintenanceSnapshot,operation:MaintenancePlan['operation'],snapshot?:MaintenanceSnapshot):Promise<MaintenancePlan>{
- check(operation==='reset-business'||operation==='restore-release','Unknown maintenance operation');targetMatches(target,baseline.target);await verifySnapshot(baseline);
+ check(['reset-business','reset-business-and-research','restore-release'].includes(operation),'Unknown maintenance operation');targetMatches(target,baseline.target);await verifySnapshot(baseline);
  if(snapshot){targetMatches(target,snapshot.target);await verifySnapshot(snapshot)}
  const current=snapshot??await snapshotMaintenance(env,target);
- check(!tables.some(table=>table.startsWith('research_')&&table!=='research_connection'&&current.tables[table]?.length),'Existing research work requires a dedicated retention plan before business maintenance');
- const keep=await preservation(current,baseline),deleteRows=Object.fromEntries(tables.map(table=>[table,[] as string[]])) as Record<Table,string[]>,replaceRows=Object.fromEntries(tables.map(table=>[table,[] as Row[]])) as Record<Table,Row[]>;
+ const resetResearch=operation==='reset-business-and-research',resetBusiness=operation!=='restore-release';
+ if(resetResearch){
+  check(!(current.tables.research_connection??[]).some(row=>body(row).state==='ready'),'Pause research dispatch before resetting research work');
+  check(!(current.tables.research_schedules??[]).some(row=>row.enabled!==0),'Disable research schedules before reset');
+  check(!(current.tables.research_attempts??[]).some(row=>['reserved','running'].includes(String(row.state)))&&!(current.tables.research_jobs??[]).some(row=>['reserved','running','uncertain'].includes(String(row.state))),'Confirm active or uncertain external execution has ended before reset');
+ }else check(!tables.some(table=>table.startsWith('research_')&&table!=='research_connection'&&current.tables[table]?.length),'Existing research work requires a dedicated retention plan before business maintenance');
+ const keep=await preservation(current,baseline,resetResearch),deleteRows=Object.fromEntries(tables.map(table=>[table,[] as string[]])) as Record<Table,string[]>,replaceRows=Object.fromEntries(tables.map(table=>[table,[] as Row[]])) as Record<Table,Row[]>;
  check(canonical(current.tables.persons.map(row=>row.id).sort())===canonical(baseline.tables.persons.map(row=>row.id).sort()),'Personnel membership changed; reconcile before reset');
  const staffing=(rows:Row[])=>sorted(rows.map(row=>{const {isAdmin:_admin,adminAssignmentId:_assignment,...person}=body(row);return person}));
  check(canonical(staffing(current.tables.persons))===canonical(staffing(baseline.tables.persons)),'Personnel configuration changed; reconcile staff changes before maintenance');
@@ -110,7 +116,7 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
  const baselineChanges=new Set(baseline.tables.regulation_changes.map(row=>canonical(row)));
  check(!current.tables.regulation_changes.some(row=>!['published','cancelled'].includes(body(row).state)&&!baselineChanges.has(canonical(row))),'Open regulation changes made after the baseline; cancel or publish them before maintenance');
  const restored=restoredRegulations(current,baseline);replaceRows.artifacts=restored.artifacts;replaceRows.revisions=restored.revisions;
- if(operation==='reset-business'){
+ if(resetBusiness){
   // Record-specific actors are business data, unlike staff/role provenance.
   // Only these two optional release metadata fields may be removed by reset;
   // the release object key, knowledge manifest and original bundle stay intact.
@@ -126,6 +132,11 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
   for(const row of baseline.tables.artifacts)if(row.kind==='record'&&keep.keepArtifacts.has(String(row.id)))replaceRows.artifacts.push(row);
   for(const row of baseline.tables.revisions)if(keep.keepRevisions.has(String(row.id))&&!replaceRows.revisions.some(other=>other.id===row.id))replaceRows.revisions.push(row);
  }
+ if(resetResearch){
+  check(!current.tables.revisions.some(row=>keep.keepRevisions.has(String(row.id))&&body(row).research)&&!(current.tables.research_adoptions??[]).some(row=>keep.keepRevisions.has(String(row.revision_id))),'Preserved staff or regulation grounds reference research; retain that provenance before reset');
+  for(const table of tables.filter(table=>table.startsWith('research_')&&!['research_connection','research_subscriptions'].includes(table)))deleteRows[table]=(current.tables[table]??[]).map(row=>String(row.id));
+  deleteRows.events=[...new Set([...deleteRows.events,...current.tables.events.filter(researchWorkEvent).map(row=>String(row.id))])];
+ }
  deleteRows.sessions=current.tables.sessions.map(row=>String(row.id));
  // Replay rows have a compound key; the transaction clears the complete fenced table.
  deleteRows.mutation_requests=current.tables.mutation_requests.map(row=>`${row.actor_id}:${row.request_key}`);
@@ -133,20 +144,22 @@ export async function planMaintenance(env:Env,target:MaintenanceTarget,baseline:
  for(const table of tables.filter(table=>current.tables[table]))if(table!=='assignments'){const existing=new Map(current.tables[table].map(row=>[String(row.id),canonical(row)]));replaceRows[table]=replaceRows[table].filter(row=>existing.get(String(row.id))!==canonical(row))}
  const context=current.tables.context[0];replaceRows.context=[{...context,release_id:baseline.tables.context[0].release_id,rules_hash:baseline.tables.context[0].rules_hash,data_revision:Number(context.data_revision)+1,authority_revision:Number(context.authority_revision)+1}];
  const replayObjects=current.tables.mutation_requests.flatMap(row=>{const pointer=jsonPointer(JSON.parse(String(row.result)),'mutation-results');if(!pointer)return [];check(current.objects.some(object=>object.key===pointer.key&&object.sha256===pointer.sha256),'Replay object missing or changed');return [pointer.key]});
- const designationObjects=operation==='reset-business'?current.objects.filter(object=>object.key.startsWith('record-designations/')).map(object=>{
+ const designationObjects=resetBusiness?current.objects.filter(object=>object.key.startsWith('record-designations/')).map(object=>{
   check(object.key===`record-designations/${object.sha256}.json`,'Invalid business record designation object key');keep.keepObjects.delete(object.key);return object.key;
  }):[];
  const deleteObjects=[...new Set([...replayObjects,...designationObjects,...current.tables.revisions.filter(row=>deleteRows.revisions.includes(String(row.id))).flatMap(row=>{const revision=body(row);return [revision.objectKey,revision.textKey]})])].filter(key=>!keep.keepObjects.has(key)).sort();
  const after=structuredClone(current.tables);for(const table of tables.filter(table=>current.tables[table])){after[table]=table==='mutation_requests'?[]:after[table].filter(row=>!deleteRows[table].includes(String(row.id)));for(const replacement of replaceRows[table]){after[table]=after[table].filter(row=>row.id!==replacement.id);after[table].push(replacement)}sorted(after[table])}
  const plan={version:1 as const,operation,target,baselineHash:baseline.hash,beforeHash:current.stateHash,createdAt:new Date().toISOString(),deleteRows,replaceRows,deleteObjects,preserveObjects:[...keep.keepObjects].map(([key,sha256])=>({key,sha256})).sort((a,b)=>a.key.localeCompare(b.key)),afterDatabaseHash:await databaseHash({tables:after,schema:current.schema})};return {...plan,hash:await digest(plan)};
 }
-function guards(env:Env,current:{tables:Tables;schema:SchemaRow[]}){
+function guards(env:Env,current:{tables:Tables;schema:SchemaRow[]},research=false){
  const statements:D1PreparedStatement[]=[];
  const guard=(condition:string,params:unknown[])=>statements.push(env.DB.prepare(`INSERT INTO context SELECT * FROM context WHERE id=1 AND (${condition})`).bind(...params));
  // Every application write except session selection advances the context row; per-table counts catch other writers.
  // ponytail: count+context fence, not per-row content; add a row-hash column if non-app writers must be fenced exactly.
  const context=current.tables.context[0];guard(`NOT EXISTS(SELECT 1 FROM context WHERE ${columns.context.map(name=>`${name} IS ?`).join(' AND ')})`,columns.context.map(name=>context[name]));
  for(const table of tables.filter(table=>current.schema.some(row=>row.type==='table'&&row.name===table)))guard(`(SELECT COUNT(*) FROM ${table})<>?`,[current.tables[table].length]);
+ // Research callbacks and subscription renewal can change rows without advancing the ERP context.
+ if(research)for(const table of tables.filter(table=>table.startsWith('research_')))for(const row of current.tables[table]??[])guard(`NOT EXISTS(SELECT 1 FROM ${table} WHERE ${columns[table].map(name=>`${name} IS ?`).join(' AND ')})`,columns[table].map(name=>row[name]));
  guard("(SELECT COUNT(*) FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name<>'d1_migrations')<>?",[current.schema.length]);
  for(const row of current.schema)guard('NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type=? AND name=? AND sql=?)',[row.type,row.name,row.sql]);return statements;
 }
@@ -161,7 +174,7 @@ export async function applyMaintenance(env:Env,target:MaintenanceTarget,baseline
   // A reused snapshot is still fenced: its hash must equal the plan's, and the batch guards recheck the live context and counts.
   const current=snapshot??await snapshotMaintenance(env,target);check(current.stateHash===plan.beforeHash,'Stale maintenance plan: state changed');
   const recomputed=await planMaintenance(env,target,baseline,plan.operation,current);check(canonical(recomputed.deleteRows)===canonical(plan.deleteRows)&&canonical(recomputed.replaceRows)===canonical(plan.replaceRows)&&canonical(recomputed.deleteObjects)===canonical(plan.deleteObjects)&&recomputed.afterDatabaseHash===plan.afterDatabaseHash,'Maintenance plan content changed');
-  await verifyPreservedObjects(env,plan.preserveObjects);const statements=guards(env,current),immutable=current.schema.filter(row=>row.type==='trigger'&&/_immutable_(update|delete)$/.test(row.name));
+  await verifyPreservedObjects(env,plan.preserveObjects);const statements=guards(env,current,plan.operation==='reset-business-and-research'),immutable=current.schema.filter(row=>row.type==='trigger'&&/_immutable_(update|delete)$/.test(row.name));
   for(const trigger of immutable)statements.push(env.DB.prepare(`DROP TRIGGER ${trigger.name}`));
   for(const table of [...tables].reverse())if(table==='mutation_requests'||table==='sessions')statements.push(env.DB.prepare(`DELETE FROM ${table}`));else for(let i=0;i<plan.deleteRows[table].length;i+=100){const ids=plan.deleteRows[table].slice(i,i+100);statements.push(env.DB.prepare(`DELETE FROM ${table} WHERE id IN (${ids.map(()=>'?').join(',')})`).bind(...ids))}
   for(const table of tables)for(const row of plan.replaceRows[table]){if(table==='assignments')statements.push(...insertRows(env,table,[row]));else{const names=columns[table].filter(name=>name!=='id');statements.push(env.DB.prepare(`UPDATE ${table} SET ${names.map(name=>`${name}=?`).join(',')} WHERE id=?`).bind(...names.map(name=>row[name]),row.id))}}

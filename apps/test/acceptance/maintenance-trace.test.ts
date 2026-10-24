@@ -30,3 +30,17 @@ it('only permits a declared, validated record applicability condition with match
  expect(()=>verifyMaintenanceTrace({...trace(),unknown:[]},[hierarchy,conditional])).toThrow();
  expect(()=>verifyMaintenanceTrace({...trace(),unknown:[{id:'conditional',reason:'Different condition'}]},[hierarchy,conditional])).toThrow();
 });
+
+it('keeps known extracted record references unresolved without treating them as hierarchy evidence',()=>{
+ const reference:Relation={...hierarchy,id:'record-reference',type:'references',origin:'reference_extraction',reviewStatus:'candidate'};
+ const result={...trace(),excluded:[...trace().excluded,{id:reference.id,reason:'RELATION_NOT_VALIDATED'}]};
+ expect(verifyMaintenanceTrace(result,[hierarchy,conditional],[reference])).toBe(true);
+ expect(reference.reviewStatus).toBe('candidate');
+ expect(()=>verifyMaintenanceTrace({...trace(),excluded:[{id:hierarchy.id,reason:'RELATION_NOT_VALIDATED'}]},[hierarchy,conditional],[{...reference,id:hierarchy.id}])).toThrow(/Unverified trace relation/);
+ expect(result.excluded).toContainEqual({id:reference.id,reason:'RELATION_NOT_VALIDATED'});
+ expect(()=>verifyMaintenanceTrace(result,[hierarchy,conditional])).toThrow();
+ for(const change of [{type:'subordinate_to' as const},{origin:'regulation' as const},{reviewStatus:'validated' as const}])
+  expect(()=>verifyMaintenanceTrace(result,[hierarchy,conditional],[{...reference,...change}])).toThrow();
+ for(const reason of ['SOURCE_CHANGED','SOURCE_UNAVAILABLE'])
+  expect(()=>verifyMaintenanceTrace({...result,excluded:[{id:reference.id,reason}]},[hierarchy,conditional],[reference])).toThrow();
+});

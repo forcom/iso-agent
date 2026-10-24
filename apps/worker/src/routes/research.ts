@@ -3,7 +3,7 @@ import type {AppEnv} from '../types';
 import {getBundle,getKnowledgeContext} from '../lib/storage';
 import {researchCatalog,researchInstructions} from '../research/catalog';
 import {connection,researchGet,researchList} from '../research/repository';
-import {changeResearchJob,createResearchJob,createSchedule,editSchedule,requireResearchWrite} from '../research/service';
+import {changeResearchJob,createResearchJob,createSchedule,deleteSchedule,editSchedule,requireResearchWrite} from '../research/service';
 import {ApiError,stringList} from '../lib/errors';
 import type {ResearchJob} from '../research/types';
 export const researchRoutes=new Hono<AppEnv>();
@@ -25,6 +25,7 @@ researchRoutes.get('/research/jobs/:id',async c=>{
  return c.json({job,connection:company,context:await getKnowledgeContext(c.env),events:events.results.map(r=>JSON.parse(r.body)),results:results.results.map(r=>JSON.parse(r.body)),proposals:proposals.results.map(r=>JSON.parse(r.body)),adoptions:adoptions.results.map(r=>JSON.parse(r.body))});
 });
 researchRoutes.post('/research/schedules',async c=>c.json(await createSchedule(c.env,c.get('actor'),await c.req.json()),201));
+researchRoutes.post('/research/schedules/:id/delete',async c=>c.json(await deleteSchedule(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 researchRoutes.post('/research/schedules/:id',async c=>c.json(await editSchedule(c.env,c.get('actor'),c.req.param('id'),await c.req.json())));
 researchRoutes.post('/research/schedules/:id/run',async c=>c.json(await createResearchJob(c.env,c.get('actor'),await c.req.json(),c.req.param('id')),201));
 researchRoutes.post('/research/jobs',async c=>c.json(await createResearchJob(c.env,c.get('actor'),await c.req.json()),201));

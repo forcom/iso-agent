@@ -30,7 +30,12 @@ for(const width of [1440,390])test(`ERP research schedules and handoff at ${widt
  await page.getByRole('article',{name:title}).getByRole('button',{name:'예약 중지',exact:true}).click();
  await expect(page.getByRole('article',{name:title})).toContainText('예약 중지됨');
  await person(page,'reader');await expect(page.getByRole('button',{name:'새 일정',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'일정 삭제',exact:true})).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ await person(page,'admin');await card.getByRole('button',{name:'일정 삭제',exact:true}).click();
+ await expect(card).toHaveCount(0);
+ await page.locator('.item-list').getByRole('link').filter({hasText:title}).click();
+ await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
 });
 test('schedule controls check the assignee permissions before allowing run or edits',async({page})=>{
  await page.goto('/#/research');await page.getByRole('button',{name:'새 일정',exact:true}).click();const form=page.getByRole('dialog');

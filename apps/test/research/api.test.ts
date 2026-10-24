@@ -2,9 +2,32 @@ import {afterEach,describe,expect,it} from 'vitest';
 import {createTestEnvironment,type TestEnvironment} from '../support/environment';
 import {requestResearch,researchDefinition} from './fixture';
 import {getKnowledgeContext} from '../../worker/src/lib/storage';
+import {tickResearch} from '../../worker/src/research/runner';
 let t:TestEnvironment;
 afterEach(async()=>{await t?.cleanup()});
 describe('ERP research permissions and ownership',()=>{
+ it('lets only administrators delete a schedule while retaining its jobs and audit history',async()=>{
+  t=await createTestEnvironment();const admin=await t.select('admin'),author=await t.select('author');
+  const schedule=await (await requestResearch(t,admin,'/research/schedules',{definition:{...researchDefinition,timing:{kind:'daily',time:'09:00',startDate:'2026-01-01',endDate:''}}})).json() as any;
+  const job=await (await requestResearch(t,admin,`/research/schedules/${schedule.id}/run`,{expectedVersion:1})).json() as any;
+  const path=`/research/schedules/${schedule.id}/delete`;
+  expect((await requestResearch(t,author,path,{expectedVersion:1})).status).toBe(403);
+  expect((await requestResearch(t,admin,path,{expectedVersion:0})).status).toBe(409);
+  const input={requestKey:'delete-once',expectedVersion:1,expectedContext:await getKnowledgeContext(t.bindings)};
+  const deleted=await requestResearch(t,admin,path,input);expect(deleted.status).toBe(200);
+  const result=await deleted.json();expect(await (await requestResearch(t,admin,path,input)).json()).toEqual(result);
+  const overview=await (await requestResearch(t,admin,'/research')).json() as any;
+  expect(overview.schedules).toHaveLength(0);expect(overview.jobs).toEqual([job]);
+  expect((await requestResearch(t,admin,`/research/jobs/${job.id}`)).status).toBe(200);
+  expect((await requestResearch(t,admin,`/research/schedules/${schedule.id}/run`,{expectedVersion:2})).status).toBe(404);
+  expect((await requestResearch(t,admin,`/research/schedules/${schedule.id}`,{expectedVersion:2,definition:schedule.definition,enabled:true})).status).toBe(404);
+  await tickResearch(t.bindings,'2030-01-01T00:00:00.000Z');
+  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_jobs').first('n')).toBe(1);
+  const event=JSON.parse((await t.bindings.DB.prepare("SELECT body FROM events WHERE json_extract(body,'$.kind')='research.schedule_deleted'").first('body')) as string);
+  expect(event).toMatchObject({actorId:'admin',scheduleId:schedule.id});
+  const stored=JSON.parse((await t.bindings.DB.prepare('SELECT body FROM research_schedules WHERE id=?').bind(schedule.id).first('body')) as string);
+  expect(stored).toMatchObject({enabled:false,nextAt:null,definition:schedule.definition});expect(stored.deletedAt).toBeTruthy();
+ });
  it('keeps company connection independent while changing schedule assignee and preserving queued definitions',async()=>{
   t=await createTestEnvironment();const admin=await t.select('admin');
   const response=await requestResearch(t,admin,'/research/schedules',{definition:{...researchDefinition,timing:{kind:'monthly',time:'09:00',day:31,startDate:'2026-01-01',endDate:''}}});

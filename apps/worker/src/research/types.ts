@@ -11,6 +11,7 @@ export interface ResearchDefinition {
 export interface ResearchSchedule {
  id:string; version:number; definition:ResearchDefinition; enabled:boolean; nextAt:string|null;
  createdAt:string; createdBy:string; updatedAt:string; connectionId:string;
+ deletedAt?:string;
  lastError?:{code:string;message:string;at:string};
 }
 export type ResearchState='queued'|'reserved'|'running'|'needs_input'|'partial'|'received'|'uncertain'|'failed'|'cancelled';

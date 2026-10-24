@@ -40,6 +40,16 @@ export async function createSchedule(env:Env,actor:ActorContext,input:any,now=ne
   return {result:s,statements:[env.DB.prepare('INSERT INTO research_schedules VALUES(?,?,?,?,?)').bind(s.id,1,s.nextAt,1,JSON.stringify(s)),researchEvent(env,'schedule_created',{scheduleId:s.id},actor.personId,{definition})]};
  });
 }
+export async function deleteSchedule(env:Env,actor:ActorContext,id:string,input:any,now=new Date().toISOString()) {
+ requireAdmin(actor);
+ return mutate(env,actor,input,`research.schedule.delete:${id}`,async()=>{
+  const old=await researchGet<ResearchSchedule>(env,'research_schedules',id);
+  requireValue(old.version===input.expectedVersion,409,'RESEARCH_CONFLICT','일정이 변경되었습니다. 다시 확인해 주세요.');
+  // Keep the schedule snapshot for existing jobs and audit references.
+  const schedule={...old,version:old.version+1,enabled:false,nextAt:null,updatedAt:now,deletedAt:now};
+  return {result:{id,deletedAt:now},statements:[updateSchedule(env,schedule),researchEvent(env,'schedule_deleted',{scheduleId:id},actor.personId,{previousVersion:old.version})]};
+ });
+}
 export async function editSchedule(env:Env,actor:ActorContext,id:string,input:any,now=new Date().toISOString()) {
  return mutate(env,actor,input,`research.schedule.edit:${id}`,async context=>{
   const old=await researchGet<ResearchSchedule>(env,'research_schedules',id);requireValue(old.version===input.expectedVersion,409,'RESEARCH_CONFLICT','일정이 변경되었습니다. 다시 확인해 주세요.');

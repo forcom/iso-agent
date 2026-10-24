@@ -4,11 +4,11 @@ import {event} from '../lib/storage';
 import type {ResearchConnection,ResearchJob,ResearchSchedule} from './types';
 type ResearchTable='research_connection'|'research_schedules'|'research_jobs'|'research_attempts'|'research_results'|'research_proposals'|'research_adoptions';
 export async function researchGet<T>(env:Env,table:ResearchTable,id:string):Promise<T> {
- const row=await env.DB.prepare(`SELECT body FROM ${table} WHERE id=?`).bind(id).first<{body:string}>();
+ const row=await env.DB.prepare(`SELECT body FROM ${table} WHERE id=?${table==='research_schedules'?" AND json_extract(body,'$.deletedAt') IS NULL":''}`).bind(id).first<{body:string}>();
  requireValue(row,404,'NOT_FOUND','조사 대상을 찾을 수 없습니다.');return JSON.parse(row.body);
 }
 export async function researchList<T>(env:Env,table:ResearchTable):Promise<T[]> {
- return (await env.DB.prepare(`SELECT body FROM ${table} ORDER BY rowid DESC LIMIT 200`).all<{body:string}>()).results.map(r=>JSON.parse(r.body));
+ return (await env.DB.prepare(`SELECT body FROM ${table}${table==='research_schedules'?" WHERE json_extract(body,'$.deletedAt') IS NULL":''} ORDER BY rowid DESC LIMIT 200`).all<{body:string}>()).results.map(r=>JSON.parse(r.body));
 }
 export const connection=(env:Env)=>researchGet<ResearchConnection>(env,'research_connection','company-dots');
 export function updateJob(env:Env,job:ResearchJob) {return env.DB.prepare('UPDATE research_jobs SET version=?,state=?,body=? WHERE id=?').bind(job.version,job.state,JSON.stringify(job),job.id)}

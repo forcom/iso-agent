@@ -9,7 +9,7 @@ let t:TestEnvironment;
 afterEach(async()=>{await t?.cleanup()});
 async function proposal(){
  t=await createTestEnvironment();const actor=await t.select('author');
- await t.bindings.DB.prepare("UPDATE research_connection SET version=2,body=json_set(body,'$.version',2,'$.state','ready') WHERE id='company-dots'").run();
+ await t.bindings.DB.prepare("UPDATE research_connection SET version=version+1,body=json_set(body,'$.version',version+1,'$.state','ready') WHERE id='company-dots'").run();
  await requestResearch(t,actor,'/research/jobs',{definition:researchDefinition});
  const a=(await reserveResearchJob(t.bindings))!;await beginResearchJob(t.bindings,a.id);
  await finishResearchAttempt(t.bindings,a.id,{kind:'result',result:{coverage:'complete',summary:'합성 제안',findings:[],sources:[],internalEvidence:[],drafts:[{recordTypeId:'test-F01',templateRevisionId:'test-tpl-rev-1',title:'합성 초안',markdown:'# 제안\n수행 미확인'}],actions:[],questions:['사내 확인 필요'],checkedScope:'합성 내부 검토 방법 초안',failedSources:[]}});

@@ -7,7 +7,7 @@ let t:TestEnvironment;
 afterEach(async()=>{await t?.cleanup()});
 it.each(['begin','finish','cancel'])('does not undo %s that wins after the expiry scan',async transition=>{
  t=await createTestEnvironment();
- await t.bindings.DB.prepare("UPDATE research_connection SET version=2,body=json_set(body,'$.version',2,'$.state','ready') WHERE id='company-dots'").run();
+ await t.bindings.DB.prepare("UPDATE research_connection SET version=version+1,body=json_set(body,'$.version',version+1,'$.state','ready') WHERE id='company-dots'").run();
  const actor=await t.select('author'),j=await (await requestResearch(t,actor,'/research/jobs',{definition:researchDefinition})).json() as any;
  const a=(await reserveResearchJob(t.bindings,'2026-10-24T00:00:00Z'))!;
  if(transition!=='begin')await beginResearchJob(t.bindings,a.id,'2026-10-24T00:01:00Z');

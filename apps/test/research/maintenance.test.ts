@@ -15,7 +15,7 @@ it('backs up the shared connection and refuses the old business reset when resea
 });
 it('restores the pre-research backup format in a legacy-schema clone',async()=>{
  t=await createTestEnvironment();
- for(const name of ['research_adoptions','research_proposals','research_results','research_outbox','research_attempts','research_jobs','research_schedules','research_connection'])await t.bindings.DB.prepare(`DROP TABLE ${name}`).run();
+ for(const name of ['research_subscriptions','research_adoptions','research_proposals','research_results','research_outbox','research_attempts','research_jobs','research_schedules','research_connection'])await t.bindings.DB.prepare(`DROP TABLE ${name}`).run();
  const target={environment:'test' as const,databaseId:'iso-test',bucketName:'iso-test'};
  const current=await snapshotMaintenance(t.bindings,target),legacy=structuredClone(current);
  for(const key of Object.keys(legacy.tables).filter(key=>key.startsWith('research_')))delete (legacy.tables as any)[key];

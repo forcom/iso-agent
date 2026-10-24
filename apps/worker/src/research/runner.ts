@@ -41,16 +41,35 @@ export async function reserveResearchJob(env:Env,now=new Date().toISOString()):P
  try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,job),env.DB.prepare('INSERT INTO research_attempts VALUES(?,?,?,?,?)').bind(id,job.id,attempt.state,attempt.expiresAt,JSON.stringify(attempt)),env.DB.prepare("UPDATE research_outbox SET state='reserved',event_id=?,body=? WHERE id=?").bind(crypto.randomUUID(),JSON.stringify({jobId:job.id,attemptId:id,createdAt:now}),job.id),researchEvent(env,'reserved',{jobId:job.id},company.id,{attemptId:id})]);return attempt}
  catch(error){if(/RESEARCH_CONFLICT|UNIQUE constraint failed/.test(String(error)))return null;throw error}
 }
-async function active(env:Env,id:string,now:string){
+export async function activeResearchAttempt(env:Env,id:string,now=new Date().toISOString()){
  const attempt=await researchGet<ResearchAttempt>(env,'research_attempts',id),job=await researchGet<ResearchJob>(env,'research_jobs',attempt.jobId),company=await connection(env);
  requireValue(company.state==='ready'&&company.version===attempt.connectionVersion&&job.attemptId===id&&['reserved','running'].includes(job.state)&&attempt.state!=='closed'&&Date.parse(attempt.expiresAt)>Date.parse(now),409,'RESEARCH_LEASE_EXPIRED','유효한 조사 실행권이 없습니다.');
  return {attempt,job,company};
 }
-export async function beginResearchJob(env:Env,id:string,now=new Date().toISOString()):Promise<ResearchJob> {
- const {attempt,job,company}=await active(env,id,now);if(attempt.state==='running')return attempt.input;
+export async function beginResearchJob(env:Env,id:string,now=new Date().toISOString()):Promise<ResearchJob&{alreadyStarted:boolean}> {
+ const {attempt,job,company}=await activeResearchAttempt(env,id,now);if(attempt.state==='running')return {...attempt.input,alreadyStarted:true};
  const next={...attempt,state:'running' as const,expiresAt:minutes(now,60)};
  try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,state:'running',updatedAt:now,message:'조사 중'}),saveAttempt(env,next),env.DB.prepare("UPDATE research_outbox SET state='claimed' WHERE id=?").bind(job.id),researchEvent(env,'started',{jobId:job.id},company.id,{attemptId:id})])}catch(error){return researchConflict(error)}
- return next.input;
+ return {...next.input,alreadyStarted:false};
+}
+export async function reportResearchProgress(env:Env,id:string,message:string,now=new Date().toISOString()){
+ const {job,company}=await activeResearchAttempt(env,id,now);requireValue(job.state==='running',409,'NOT_STARTED','먼저 작업을 시작해 주세요.');
+ message=textField(message,'진행 보고',2000);
+ await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,message,updatedAt:now}),researchEvent(env,'progress',{jobId:job.id},company.id,{attemptId:id,message})]);return {received:true};
+}
+/** Only the pairing-code consent handler may invoke operator-confirmed recovery. */
+export async function recoverResearchConnection(env:Env,expectedVersion:number,now=new Date().toISOString()){
+ const company=await connection(env);requireValue(company.state==='held'&&company.version===expectedVersion,409,'RESEARCH_CONFLICT','연결 상태가 변경되었습니다. 다시 확인해 주세요.');
+ const rows=await env.DB.prepare("SELECT body FROM research_attempts WHERE state IN ('reserved','running')").all<{body:string}>();
+ const statements:D1PreparedStatement[]=[env.DB.prepare("INSERT INTO research_connection SELECT * FROM research_connection WHERE id='company-dots' AND version<>?").bind(expectedVersion)];
+ for(const row of rows.results){
+  const a=JSON.parse(row.body) as ResearchAttempt,job=await researchGet<ResearchJob>(env,'research_jobs',a.jobId);
+  statements.push(env.DB.prepare('INSERT INTO research_attempts SELECT * FROM research_attempts WHERE id=? AND body<>?').bind(a.id,row.body),saveAttempt(env,{...a,state:'closed'}));
+  if(job.attemptId===a.id&&['reserved','running'].includes(job.state))statements.push(updateJob(env,{...job,version:job.version+1,state:'uncertain',message:'운영자가 외부 실행 종료 확인 · 결과는 미확인',updatedAt:now}),env.DB.prepare("UPDATE research_outbox SET state='held' WHERE id=?").bind(job.id));
+ }
+ const next={...company,version:company.version+1,state:'unconfigured',reason:'운영자 종료 확인 완료 · Dots 이벤트 재구독 필요'};
+ statements.push(env.DB.prepare('DELETE FROM research_subscriptions'),env.DB.prepare('UPDATE research_connection SET version=?,body=? WHERE id=?').bind(next.version,JSON.stringify(next),company.id),researchEvent(env,'operator_recovered',{},'system:pairing-code-operator',{externalStopped:true,closedAttempts:rows.results.length}));
+ try{await env.DB.batch(statements)}catch(error){return researchConflict(error)}
 }
 export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=new Date().toISOString()) {
  requireValue(input&&typeof input==='object'&&!Array.isArray(input),422,'INVALID_RESULT','결과 객체가 필요합니다.');

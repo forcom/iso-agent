@@ -1,14 +1,14 @@
 import {afterEach,describe,expect,it} from 'vitest';
 import {createTestEnvironment,type TestEnvironment} from '../support/environment';
-import {requestResearch,researchDefinition} from './fixture';
+import {requestResearch,researchDefinition,resultInput} from './fixture';
 import {createSchedule} from '../../worker/src/research/service';
 import {getKnowledgeContext} from '../../worker/src/lib/storage';
 import {tickResearch,reserveResearchJob,beginResearchJob,finishResearchAttempt,expireResearchAttempts} from '../../worker/src/research/runner';
 let t:TestEnvironment;
 afterEach(async()=>{await t?.cleanup()});
-async function ready(){await t.bindings.DB.prepare("UPDATE research_connection SET version=2,body=json_set(body,'$.version',2,'$.state','ready') WHERE id='company-dots'").run()}
+async function ready(){await t.bindings.DB.prepare("UPDATE research_connection SET version=version+1,body=json_set(body,'$.version',version+1,'$.state','ready') WHERE id='company-dots'").run()}
 async function job(){const actor=await t.select('author');return await (await requestResearch(t,actor,'/research/jobs',{definition:researchDefinition})).json() as any}
-export const resultInput={kind:'result',result:{coverage:'complete',summary:'합성 외부 이슈 제안',findings:[{kind:'proposal',text:'공격 노출 조건을 확인할 것',sourceIds:['s1']}],sources:[{id:'s1',url:'https://example.org/advisory',title:'합성 공지',publisher:'Synthetic',accessedAt:'2026-10-24T00:00:00Z',quote:'synthetic public text',verification:'verified'}],internalEvidence:[],drafts:[{recordTypeId:'test-F01',templateRevisionId:'test-tpl-rev-1',title:'합성 초안',markdown:'# 합성 조사 초안\n수행 여부 미확인\n'}],actions:[{text:'노출 확인',reason:'사례 검토',ownerSuggestion:'담당자 제안',dueSuggestion:'검토 후 결정',verificationMethod:'내부 시험'}],questions:['실제 사용 여부?'],checkedScope:'합성 공지 1개 확인',failedSources:[]}};
+
 describe('research scheduler and server execution contract',()=>{
  it('coalesces missed slots and deduplicates simultaneous ticks without a Dots connection',async()=>{
   t=await createTestEnvironment();const admin=await t.select('admin');

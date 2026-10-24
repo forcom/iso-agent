@@ -8,6 +8,7 @@ import {ApiError,stringList} from '../lib/errors';
 import type {ResearchJob} from '../research/types';
 export const researchRoutes=new Hono<AppEnv>();
 researchRoutes.get('/research',async c=>{
+ if(c.env.DOTS_ENABLED==='true'){const {checkResearchConnection}=await import('../research/events');await checkResearchConnection(c.env)}
  const context=await getKnowledgeContext(c.env),bundle=await getBundle(c.env,context);
  const [company,schedules,jobs]=await Promise.all([connection(c.env),researchList(c.env,'research_schedules'),researchList(c.env,'research_jobs')]);
  return c.json({connection:company,schedules,jobs,context,instructions:researchInstructions,recordTypes:bundle.recordTypes.map(type=>({...type,guidance:researchCatalog.find(row=>row.code===type.code)??null})),timeZone:'Asia/Seoul',limit:200,schedulingEnabled:c.env.RESEARCH_SCHEDULES_ENABLED==='true'});

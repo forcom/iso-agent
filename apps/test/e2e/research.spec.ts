@@ -32,6 +32,30 @@ for(const width of [1440,390])test(`ERP research schedules and handoff at ${widt
  await person(page,'reader');await expect(page.getByRole('button',{name:'새 일정',exact:true})).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
+test('schedule controls check the assignee permissions before allowing run or edits',async({page})=>{
+ await page.goto('/#/research');await page.getByRole('button',{name:'새 일정',exact:true}).click();const form=page.getByRole('dialog');
+ const title=`합성 공통 감시 ${Date.now()}`;
+ await form.getByLabel('업무명',{exact:true}).fill(title);
+ await form.getByLabel('조사 목적',{exact:true}).fill('합성 다중 유형 일정의 권한 대조');
+ await form.getByLabel('조사 대상',{exact:true}).fill('합성 서비스');
+ await form.getByLabel('기록 유형',{exact:true}).selectOption(['test-F01','test-F02']);
+ await form.getByLabel('조사할 항목',{exact:true}).fill('합성 외부 변경');
+ await form.getByLabel('업무 담당자',{exact:true}).selectOption('reader');
+ await form.getByRole('button',{name:'일정 저장',exact:true}).click();await expect(form).not.toBeVisible();
+ const card=page.getByRole('article',{name:title});
+ await person(page,'reader');
+ for(const name of ['지금 실행','일정 수정','예약 중지'])await expect(card.getByRole('button',{name,exact:true})).toBeDisabled();
+ await expect(card).toContainText('이 일정에 포함된 모든 기록 유형의 작성 권한이 필요합니다.');
+ await expect(card).toContainText('운영 관리자');
+ await person(page,'author');await expect(card.getByRole('button',{name:'지금 실행',exact:true})).toHaveCount(0);
+ await person(page,'admin');await expect(card.getByRole('button',{name:'지금 실행',exact:true})).toBeEnabled();
+ await card.getByRole('button',{name:'지금 실행',exact:true}).click();
+ await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
+ await expect(page.getByText('요청자: 시험 admin',{exact:true})).toBeVisible();
+ await expect(page.getByRole('combobox',{name:'현재 담당자',exact:true})).toHaveValue('reader');
+ await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('research proposals remain drafts and use the normal upload permission flow',async({page})=>{
  const response=await page.request.post('/api/test/research/fixture');expect(response.ok()).toBe(true);const {jobId}=await response.json();
  await person(page,'author');await page.goto(`/#/research/jobs/${jobId}`);

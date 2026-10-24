@@ -38,6 +38,20 @@ describe('ERP research permissions and ownership',()=>{
   expect((await requestResearch(t,fresh,'/research/jobs',{definition:researchDefinition})).status).toBe(503);
   expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_jobs').first('n')).toBe(0);
  });
+ it('requires both schedule ownership and record permission unless the caller is an administrator',async()=>{
+  t=await createTestEnvironment();const admin=await t.select('admin'),author=await t.select('author'),reader=await t.select('reader');
+  const response=await requestResearch(t,admin,'/research/schedules',{definition:{...researchDefinition,assigneeId:'reader',recordTypeIds:['test-F01','test-F02'],timing:{kind:'daily',time:'09:00',startDate:'2026-01-01',endDate:''}}});
+  expect(response.status).toBe(201);const schedule=await response.json() as any;
+  for(const actor of [reader,author]){
+   expect((await requestResearch(t,actor,`/research/schedules/${schedule.id}/run`,{expectedVersion:1})).status).toBe(403);
+   expect((await requestResearch(t,actor,`/research/schedules/${schedule.id}`,{expectedVersion:1,definition:schedule.definition,enabled:false})).status).toBe(403);
+  }
+  expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM research_jobs').first('n')).toBe(0);
+  const run=await requestResearch(t,admin,`/research/schedules/${schedule.id}/run`,{expectedVersion:1});expect(run.status).toBe(201);
+  expect(await run.json()).toMatchObject({requestedBy:'admin',assigneeId:'reader',scheduleId:schedule.id});
+  const reassigned=await requestResearch(t,admin,`/research/schedules/${schedule.id}`,{expectedVersion:1,definition:{...schedule.definition,assigneeId:'author'},enabled:true});expect(reassigned.status).toBe(200);
+  expect((await requestResearch(t,author,`/research/schedules/${schedule.id}/run`,{expectedVersion:2})).status).toBe(201);
+ });
  it('deduplicates a manual request but rejects another payload under the same key',async()=>{
   t=await createTestEnvironment();const author=await t.select('author'),data={requestKey:'same-request',expectedContext:await getKnowledgeContext(t.bindings),definition:researchDefinition};
   const first=await requestResearch(t,author,'/research/jobs',data);expect(first.status).toBe(201);const job=await first.json();

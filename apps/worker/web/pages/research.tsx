@@ -10,6 +10,7 @@ import type {ResearchConnection,ResearchDefinition,ResearchJob,ResearchProposal,
 
 type TypeView={id:string;code:string;name:string;guidance:{classification:string;research:string;internalInputs:string;sourcesAndTriggers:string}|null};
 type Overview={connection:ResearchConnection;schedules:ResearchSchedule[];jobs:ResearchJob[];context:Context;instructions:{id:string;label:string}[];recordTypes:TypeView[];limit:number;schedulingEnabled:boolean};
+type SchedulePermissions={items:Record<string,{allowed:boolean;reason:string}>};
 type Detail={job:ResearchJob;connection:ResearchConnection;context:Context;events:{id:string;kind:string;actorId:string;at:string;message?:string}[];results:{id:string;quarantined:boolean;result?:ResearchResult}[];proposals:ResearchProposal[];adoptions:{id:string;artifactId:string}[]};
 const states={queued:'실행 대기',reserved:'전달 예약',running:'조사 중',needs_input:'확인 필요',partial:'부분 결과',received:'결과 도착',uncertain:'응답 미확인',failed:'실패',cancelled:'ERP 취소'};
 const formatTime=(value:string|null)=>value?new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',dateStyle:'medium',timeStyle:'short',hour12:false}).format(new Date(value)):'예정 없음';
@@ -22,6 +23,8 @@ function ConnectionNotice({connection,schedulingEnabled}:{connection:ResearchCon
 export function ResearchPage(){
  const load=useLoad<Overview>('/research',10000),{me,people,dirty,refresh:refreshSession}=useSession(),navigate=useNavigate(),[params]=useSearchParams();
  const [editor,setEditor]=useState<'manual'|'schedule'|ResearchSchedule|null>(params.get('baseRevisionId')?'manual':null),[error,setError]=useState<Error|null>(null),[busy,setBusy]=useState(false);
+ const assigned=load.data?.schedules.filter(s=>me?.actor&&s.definition.assigneeId===personId(me.actor))??[];
+ const permission=useLoad<SchedulePermissions>(assigned.length&&!me?.actor?.isAdmin?`/research/schedule-permissions?release=${load.data?.context.releaseId}&authority=${load.data?.context.authorityRevision}&schedules=${encodeURIComponent(assigned.map(s=>`${s.id}:${s.version}`).join(','))}`:null);
  useDirty(Boolean(editor)||busy);
  const name=(id:string)=>people.find(p=>personId(p)===id)?.name??(id||'미배정');
  async function scheduleAction(s:ResearchSchedule,run:boolean){
@@ -38,22 +41,22 @@ export function ResearchPage(){
  const data=load.data,admin=Boolean(me?.actor?.isAdmin);
  return <><PageTitle title="외부 조사" description="ERP에서 일정·작업을 관리하고 조사 결과를 기록 초안으로 검토합니다." actions={<><button disabled={load.loading||dirty} onClick={load.refresh}>새로고침</button><button onClick={()=>setEditor('manual')}>조사 요청</button>{admin&&<button className="primary" onClick={()=>setEditor('schedule')}>새 일정</button>}</>}/>
   <p className="muted">{dirty?'편집 중에는 자동 갱신을 잠시 멈춥니다.':'화면을 보고 있는 동안 10초마다 자동 갱신합니다.'}</p><ConnectionNotice connection={data.connection} schedulingEnabled={data.schedulingEnabled}/><ErrorNotice error={error??load.error} retry={load.refresh}/>
-  <Panel title="조사 일정"><p className="muted">Asia/Seoul · 날짜가 없는 달은 말일 실행 · 예약 중지는 미래 작업 생성만 중지합니다.</p>{data.schedules.length?<div className="stack">{data.schedules.map(s=><ResearchScheduleCard key={`${s.id}:${data.context.releaseId}:${data.context.authorityRevision}`} schedule={s} assigneeName={name(s.definition.assigneeId)} pendingJobs={data.jobs.filter(j=>j.scheduleId===s.id&&!['received','cancelled','failed'].includes(j.state)).length} busy={busy} onEdit={()=>setEditor(s)} onDelete={()=>void removeSchedule(s)} onAction={run=>void scheduleAction(s,run)}/>)}</div>:<Empty>등록된 조사 일정이 없습니다.</Empty>}</Panel>
+  <Panel title="조사 일정"><p className="muted">Asia/Seoul · 날짜가 없는 달은 말일 실행 · 예약 중지는 미래 작업 생성만 중지합니다.</p>{data.schedules.length?<div className="stack">{data.schedules.map(s=><ResearchScheduleCard key={`${s.id}:${data.context.releaseId}:${data.context.authorityRevision}`} schedule={s} permission={permission} assigneeName={name(s.definition.assigneeId)} pendingJobs={data.jobs.filter(j=>j.scheduleId===s.id&&!['received','cancelled','failed'].includes(j.state)).length} busy={busy} onEdit={()=>setEditor(s)} onDelete={()=>void removeSchedule(s)} onAction={run=>void scheduleAction(s,run)}/>)}</div>:<Empty>등록된 조사 일정이 없습니다.</Empty>}</Panel>
   <Panel title="조사 작업"><p className="muted">최근 {data.limit}건 · 결과 도착은 기록 승인이나 조치 완료를 뜻하지 않습니다.</p>{data.jobs.length?<ul className="item-list">{data.jobs.map(j=><li key={j.id}><Link to={`/research/jobs/${j.id}`}><span>{j.definition.title}<small>{name(j.assigneeId)} · {formatTime(j.createdAt)}</small></span><span className="status">{states[j.state]}</span></Link></li>)}</ul>:<Empty>생성된 조사 작업이 없습니다.</Empty>}</Panel>
   {editor&&<ResearchEditor data={data} schedule={typeof editor==='object'?editor:undefined} recurring={editor!=='manual'} baseRevisionId={editor==='manual'?params.get('baseRevisionId')??undefined:undefined} initialTypeIds={params.getAll('type')} initialSystemId={params.get('systemId')??''} onClose={()=>setEditor(null)} onSaved={()=>{setEditor(null);load.refresh();void refreshSession()}}/>}
  </>;
 }
-function ResearchScheduleCard({schedule:s,assigneeName,pendingJobs,busy,onEdit,onDelete,onAction}:{schedule:ResearchSchedule;assigneeName:string;pendingJobs:number;busy:boolean;onEdit:()=>void;onDelete:()=>void;onAction:(run:boolean)=>void}){
+function ResearchScheduleCard({schedule:s,permission,assigneeName,pendingJobs,busy,onEdit,onDelete,onAction}:{schedule:ResearchSchedule;permission:ReturnType<typeof useLoad<SchedulePermissions>>;assigneeName:string;pendingJobs:number;busy:boolean;onEdit:()=>void;onDelete:()=>void;onAction:(run:boolean)=>void}){
  const {me}=useSession(),admin=Boolean(me?.actor?.isAdmin),mine=Boolean(me?.actor&&s.definition.assigneeId===personId(me.actor));
- const permission=useLoad<{allowed:boolean;reason:string}>(mine&&!admin?permissionPath(s.definition.recordTypeIds,s.definition.systemId):null);
- const disabled=busy||permission.loading||(!admin&&!permission.data?.allowed);
+ const decision=permission.data?.items[s.id],loading=mine&&!admin&&permission.loading;
+ const disabled=busy||loading||(!admin&&!decision?.allowed);
  return <article aria-label={s.definition.title} className="research-card">
   <h3>{s.definition.title}</h3><p>{s.definition.purpose}</p><p>주기: {s.definition.timing.kind==='three_hourly'?'3시간마다':s.definition.timing.kind==='daily'?'매일':s.definition.timing.kind==='weekly'?'매주':'매월'} · 기준 시각: {s.definition.timing.kind!=='manual'&&s.definition.timing.time} (Asia/Seoul)</p>
   <p>담당: {assigneeName} · {s.enabled?'예약 사용':'예약 중지됨'}</p><p>{s.enabled?'다음 실행':'보류된 예정'}: {formatTime(s.nextAt)}</p>
   {s.lastError&&<p className="notice">일정 오류로 실행 보류: {s.lastError.message}</p>}<p className="muted">생성된 미종료 작업: {pendingJobs}건 (최근 목록 기준)</p>
-  {permission.loading&&<p className="muted">일정 실행·수정 권한을 확인하고 있습니다.</p>}
-  {permission.data&&!permission.data.allowed&&<p className="notice">이 일정에 포함된 모든 기록 유형의 작성 권한이 필요합니다. 회사 공통 조사 일정은 운영 관리자가 실행·관리할 수 있습니다.</p>}
-  <ErrorNotice error={permission.error} retry={permission.refresh}/>
+  {loading&&<p className="muted">일정 실행·수정 권한을 확인하고 있습니다.</p>}
+  {decision&&!decision.allowed&&<p className="notice">이 일정에 포함된 모든 기록 유형의 작성 권한이 필요합니다. 회사 공통 조사 일정은 운영 관리자가 실행·관리할 수 있습니다.</p>}
+  {mine&&!admin&&<ErrorNotice error={permission.error} retry={permission.refresh}/>}
   {(admin||mine)&&<div className="actions"><button disabled={disabled} onClick={onEdit}>일정 수정</button><button disabled={disabled} onClick={()=>onAction(false)}>{s.enabled?'예약 중지':'예약 재개'}</button><button disabled={disabled} onClick={()=>onAction(true)}>지금 실행</button>{admin&&<button disabled={busy} onClick={onDelete}>일정 삭제</button>}</div>}
  </article>;
 }

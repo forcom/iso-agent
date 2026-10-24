@@ -8,7 +8,7 @@ import {canonical,sha256} from '../../packages/knowledge/src/index';
 export async function seedResearchResult(t:TestEnvironment,limited=false){
  // This helper is served only by the isolated loopback browser harness.
  const actor=await t.select('author'),env=t.bindings;
- if(limited){
+ if(limited&&!await env.DB.prepare("SELECT id FROM persons WHERE id='research-limited-author'").first()){
   const roleId='research-f01-author',personId='research-limited-author',bundle=structuredClone(await getBundle(env,await getKnowledgeContext(env)));
   bundle.roles.push({id:roleId,name:'합성 F01 작성자',evidenceRefs:bundle.roles[0].evidenceRefs});
   for(const action of ['create','revise'] as const){const original=bundle.policies.find(p=>p.resourceTypeId==='test-F01'&&p.action===action)!;bundle.policies.push({...original,id:`research-limited-${action}`,roleId})}

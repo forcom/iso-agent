@@ -6,6 +6,16 @@ import {tickResearch} from '../../worker/src/research/runner';
 let t:TestEnvironment;
 afterEach(async()=>{await t?.cleanup()});
 describe('ERP research permissions and ownership',()=>{
+ it('checks schedule permissions together without granting access to other assignees or hiding engine failure',async()=>{
+  t=await createTestEnvironment();const admin=await t.select('admin'),author=await t.select('author'),reader=await t.select('reader');
+  const created=[];
+  for(const assigneeId of ['author','author','reader'])created.push(await (await requestResearch(t,admin,'/research/schedules',{definition:{...researchDefinition,assigneeId,timing:{kind:'daily',time:'09:00',startDate:'2026-01-01',endDate:''}}})).json() as any);
+  const response=await requestResearch(t,author,'/research/schedule-permissions');expect(response.status).toBe(200);
+  const body=await response.json() as any;
+  expect(body.items[created[0].id].allowed).toBe(true);expect(body.items[created[1].id].allowed).toBe(true);expect(body.items[created[2].id]).toBeUndefined();
+  const denied=await (await requestResearch(t,reader,'/research/schedule-permissions')).json() as any;expect(denied.items[created[2].id].allowed).toBe(false);
+  t.bindings.ENGINE_URL='http://127.0.0.1:1';expect((await requestResearch(t,author,'/research/schedule-permissions')).status).toBe(503);
+ });
  it('lets only administrators delete a schedule while retaining its jobs and audit history',async()=>{
   t=await createTestEnvironment();const admin=await t.select('admin'),author=await t.select('author');
   const schedule=await (await requestResearch(t,admin,'/research/schedules',{definition:{...researchDefinition,timing:{kind:'daily',time:'09:00',startDate:'2026-01-01',endDate:''}}})).json() as any;

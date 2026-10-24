@@ -5,7 +5,7 @@ import {researchCatalog,researchInstructions} from '../research/catalog';
 import {connection,researchGet,researchList} from '../research/repository';
 import {changeResearchJob,createResearchJob,createSchedule,deleteSchedule,editSchedule,requireResearchWrite} from '../research/service';
 import {ApiError,stringList} from '../lib/errors';
-import type {ResearchJob} from '../research/types';
+import type {ResearchJob,ResearchSchedule} from '../research/types';
 export const researchRoutes=new Hono<AppEnv>();
 researchRoutes.get('/research',async c=>{
  if(c.env.DOTS_ENABLED==='true'){const {checkResearchConnection}=await import('../research/events');await checkResearchConnection(c.env)}
@@ -18,6 +18,25 @@ researchRoutes.get('/research/permission',async c=>{
  if(!recordTypeIds.length)return c.json({allowed:false,reason:'기록 유형을 선택해 주세요.'});
  try{await requireResearchWrite(c.env,c.get('actor'),{recordTypeIds,systemId:c.req.query('systemId')??''},await getKnowledgeContext(c.env),c.req.query('baseRevisionId'));return c.json({allowed:true,reason:''})}
  catch(error){if(error instanceof ApiError&&error.status===403)return c.json({allowed:false,reason:'해당 기록 유형의 작성·수정 권한이 없습니다.'});throw error}
+});
+researchRoutes.get('/research/schedule-permissions',async c=>{
+ const actor=c.get('actor'),context=await getKnowledgeContext(c.env),schedules=await researchList<ResearchSchedule>(c.env,'research_schedules');
+ const items:Record<string,{allowed:boolean;reason:string}>={},groups=new Map<string,ResearchSchedule[]>();
+ for(const schedule of schedules){
+  if(actor.isAdmin){items[schedule.id]={allowed:true,reason:''};continue}
+  if(schedule.definition.assigneeId!==actor.personId)continue;
+  const group=groups.get(schedule.definition.systemId)??[];group.push(schedule);groups.set(schedule.definition.systemId,group);
+ }
+ const check=async(recordTypeIds:string[],systemId:string)=>{
+  try{await requireResearchWrite(c.env,actor,{recordTypeIds,systemId},context);return {allowed:true,reason:''}}
+  catch(error){if(error instanceof ApiError&&error.status===403)return {allowed:false,reason:'해당 기록 유형의 작성·수정 권한이 없습니다.'};throw error}
+ };
+ for(const [systemId,group] of groups){
+  // One engine request handles the usual case; denied groups retain per-schedule decisions.
+  const all=await check([...new Set(group.flatMap(s=>s.definition.recordTypeIds))],systemId);
+  for(const schedule of group)items[schedule.id]=all.allowed||group.length===1?all:await check(schedule.definition.recordTypeIds,systemId);
+ }
+ return c.json({items,context});
 });
 researchRoutes.get('/research/jobs/:id',async c=>{
  const id=c.req.param('id'),job=await researchGet<ResearchJob>(c.env,'research_jobs',id);

@@ -3,6 +3,21 @@ async function person(page:Page,id:string){await page.getByRole('combobox',{name
 async function decisions(page:Page){const tab=page.getByRole('tab',{name:'판단·이력',exact:true});if(await tab.isVisible())await tab.click()}
 test.beforeEach(async({page})=>{page.on('dialog',d=>void d.accept());await page.goto('/#/home');await person(page,'admin')});
 test.afterEach(async({page})=>{await page.unrouteAll({behavior:'ignoreErrors'})});
+test('many assigned schedules share one permission request and retain mixed permission decisions',async({page})=>{
+ expect((await page.request.post('/api/test/research/limited-fixture')).ok()).toBe(true);
+ const me=await (await page.request.get('/api/me')).json();let context=me.context;
+ const title=`합성 일괄 권한 ${Date.now()}`;
+ for(let i=0;i<23;i++){
+  const definition={title:`${title}-${i}`,purpose:'합성 권한 묶음 확인',instruction:'environment',targets:'합성 서비스',jurisdiction:'KR',keywords:[],sources:[],recordTypeIds:[i===22?'test-F02':'test-F01'],fields:['외부 변경'],systemId:'',assigneeId:'research-limited-author',periodStart:'2026-01-01',periodEnd:'2030-01-01',maxSources:5,timing:{kind:'daily',time:'09:00',startDate:'2030-01-01',endDate:''}};
+  const result=await page.request.post('/api/research/schedules',{headers:{'X-Session-Version':String(me.sessionVersion)},data:{requestKey:crypto.randomUUID(),expectedContext:context,definition}});expect(result.status()).toBe(201);context={...context,dataRevision:context.dataRevision+1};
+ }
+ let batches=0,individual=0;
+ page.on('request',request=>{if(request.url().includes('/api/research/schedule-permissions?'))batches++;if(request.url().includes('/api/research/permission?'))individual++});
+ await page.goto('/#/research');await page.reload();await person(page,'research-limited-author');
+ for(let i=0;i<22;i++)await expect(page.getByRole('article',{name:`${title}-${i}`,exact:true}).getByRole('button',{name:'일정 수정',exact:true})).toBeEnabled({timeout:30000});
+ await expect(page.getByRole('article',{name:`${title}-22`,exact:true}).getByRole('button',{name:'일정 수정',exact:true})).toBeDisabled();
+ expect(batches).toBe(1);expect(individual).toBe(0);
+});
 for(const width of [1440,390])test(`ERP research schedules and handoff at ${width}`,async({page})=>{
  await page.setViewportSize({width,height:900});await page.goto('/#/research');
  await expect(page.getByRole('heading',{name:'외부 조사',exact:true})).toBeVisible();

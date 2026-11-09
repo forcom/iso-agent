@@ -49,6 +49,15 @@ describe('research scheduler and server execution contract',()=>{
   expect(await t.bindings.DB.prepare("SELECT COUNT(*) n FROM artifacts WHERE kind='record'").first('n')).toBe(0);
   expect(await t.bindings.DB.prepare('SELECT COUNT(*) n FROM decisions').first('n')).toBe(0);
  });
+ it('requires a one-line conclusion and shows it as the job message',async()=>{
+  t=await createTestEnvironment();await ready();await job();const a=(await reserveResearchJob(t.bindings))!;await beginResearchJob(t.bindings,a.id);
+  const {conclusion:_,...missing}=resultInput.result;
+  for(const result of [missing,{...resultInput.result,conclusion:{verdict:'no_significant_change',headline:'변화 없음'}}])await expect(finishResearchAttempt(t.bindings,a.id,{kind:'result',result})).rejects.toMatchObject({status:422});
+  const quiet={...resultInput.result,conclusion:{verdict:'no_significant_change',headline:'조사 기간에 유의미한 변화 없음 · 추가 작업 없음'},drafts:[]};
+  await finishResearchAttempt(t.bindings,a.id,{kind:'result',result:quiet});
+  const saved=JSON.parse((await t.bindings.DB.prepare('SELECT body FROM research_jobs').first('body')) as string);
+  expect(saved).toMatchObject({message:quiet.conclusion.headline,conclusion:quiet.conclusion});
+ });
  it('rejects fabricated internal citations and false no-change after a failed search',async()=>{
   t=await createTestEnvironment();await ready();await job();const a=(await reserveResearchJob(t.bindings))!;await beginResearchJob(t.bindings,a.id);
   for(const result of [{...resultInput.result,coverage:'no_change',failedSources:['failed query']},{...resultInput.result,internalEvidence:[{revisionId:'test-reg-rev',sourceSha256:'0'.repeat(64),lineStart:1,lineEnd:1,quote:'invented'}]}]){

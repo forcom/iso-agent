@@ -80,6 +80,10 @@ test('research proposals remain drafts and use the normal upload permission flow
  const response=await page.request.post('/api/test/research/fixture');expect(response.ok()).toBe(true);const {jobId}=await response.json();
  await person(page,'author');await page.goto(`/#/research/jobs/${jobId}`);
  await expect(page.getByRole('heading',{name:'합성 결과 확인용 조사',exact:true})).toBeVisible();
+ await expect(page.getByText('유의미한 변화 있음',{exact:true})).toBeVisible();
+ await expect(page.getByText('합성 변화 확인 · 초안 검토 필요',{exact:true})).toBeVisible();
+ await expect(page.getByText(/ERP에서 원문을 독립적으로 확보/)).toBeHidden();
+ await page.getByText(/^조사 요약·근거 보기/).click();
  await expect(page.getByText(/ERP에서 원문을 독립적으로 확보/)).toBeVisible();
  await expect(page.locator('.evidence-list').getByRole('heading',{name:'시험 절차',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'기록으로 채택',exact:true}).click();const form=page.getByRole('dialog');

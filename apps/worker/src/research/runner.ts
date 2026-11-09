@@ -86,10 +86,11 @@ export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=
  }
  const v=input as Record<string,unknown>,statements:D1PreparedStatement[]=[];
  let state:ResearchJob['state'],message:string;
+ let conclusion:ResearchJob['conclusion'];
  if(v.kind==='needs_input'){state='needs_input';message=textField(v.message,'확인 질문',4000)}
  else{
   requireValue(v.kind==='result',422,'INVALID_RESULT','결과 또는 추가 정보 요청을 제출해 주세요.');
-  const result=await parseResearchResult(env,attempt.input,v.result);state=result.coverage==='partial'?'partial':'received';message=result.summary;
+  const result=await parseResearchResult(env,attempt.input,v.result);state=result.coverage==='partial'?'partial':'received';message=result.conclusion.headline;conclusion=result.conclusion;
   const stored={id,jobId:job.id,attemptId:id,receivedAt:now,hash,quarantined:false,result};
   statements.push(env.DB.prepare('INSERT INTO research_results VALUES(?,?,?,?)').bind(id,job.id,id,JSON.stringify(stored)));
   for(const draft of result.drafts){
@@ -97,7 +98,7 @@ export async function finishResearchAttempt(env:Env,id:string,input:unknown,now=
    statements.push(env.DB.prepare('INSERT INTO research_proposals VALUES(?,?,?,?)').bind(proposal.id,job.id,id,JSON.stringify(proposal)));
   }
  }
- try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,state,message,updatedAt:now}),saveAttempt(env,{...attempt,state:'closed',resultHash:hash}),...statements,env.DB.prepare("UPDATE research_outbox SET state='done' WHERE id=?").bind(job.id),researchEvent(env,'attempt_finished',{jobId:job.id},company.id,{attemptId:id,state,hash})])}catch(error){
+ try{await env.DB.batch([fenceConnection(env,company.version),updateJob(env,{...job,version:job.version+1,state,message,conclusion,updatedAt:now}),saveAttempt(env,{...attempt,state:'closed',resultHash:hash}),...statements,env.DB.prepare("UPDATE research_outbox SET state='done' WHERE id=?").bind(job.id),researchEvent(env,'attempt_finished',{jobId:job.id},company.id,{attemptId:id,state,hash})])}catch(error){
   if((await researchGet<ResearchAttempt>(env,'research_attempts',id)).resultHash===hash)return {received:true,duplicate:true};
   return researchConflict(error);
  }

@@ -22,6 +22,7 @@ export interface ResearchJob {
  templates:Record<string,string>; baseRevisionId?:string; attemptId:string|null;
  supplements:{text:string;personId:string;at:string}[]; message:string;
  scheduleDefinition?:ResearchDefinition;
+ conclusion?:ResearchConclusion;
  coverage:{from:string;through:string;scheduledFrom:string|null;coalescedThrough:string;verifiedThrough:null;sourceWindows:{url:string;from:string;through:string;verifiedThrough:null}[]};
 }
 export interface ResearchConnection {
@@ -31,7 +32,10 @@ export interface ResearchAttempt {
  id:string; jobId:string; state:'reserved'|'running'|'closed'; createdAt:string; expiresAt:string;
  connectionVersion:number; input:ResearchJob; resultHash?:string;
 }
+export type ResearchVerdict='changed'|'no_significant_change'|'undetermined';
+export interface ResearchConclusion {verdict:ResearchVerdict;headline:string}
 export interface ResearchResult {
+ conclusion:ResearchConclusion;
  coverage:'complete'|'partial'|'no_change'; summary:string;
  findings:{kind:'external_fact'|'company_relevance'|'interpretation'|'proposal'|'unknown';text:string;sourceIds:string[]}[];
  sources:{id:string;url:string;title:string;publisher:string;accessedAt:string;quote:string;verification:'unverified';reason:string}[];
